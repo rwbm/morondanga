@@ -1,19 +1,16 @@
 package morondanga
 
 import (
+	"context"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"time"
 
 	"github.com/rwbm/morondanga/config"
 	"github.com/rwbm/morondanga/logger"
-	"github.com/rwbm/morondanga/middleware"
 
-	"github.com/golang-jwt/jwt"
 	"github.com/labstack/echo/v4"
-	echoMiddleware "github.com/labstack/echo/v4/middleware"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
@@ -78,28 +75,6 @@ func (s *Service) Database() *gorm.DB {
 	return s.db
 }
 
-// JWT returns the default jwt handler function, only if it enabled.
-func (s *Service) JWT() echo.MiddlewareFunc {
-	return s.jwtHandler
-}
-
-func (s *Service) JwtToken(customClaims map[string]interface{}) string {
-	token := jwt.New(jwt.SigningMethodHS512)
-	now := time.Now()
-
-	claims := token.Claims.(jwt.MapClaims)
-	claims["iat"] = now.Unix()
-	claims["exp"] = now.Add(time.Hour * 72).Unix()
-
-	// set custom claims
-	for k, v := range customClaims {
-		claims[k] = v
-	}
-
-	t, _ := token.SignedString([]byte(s.cfg.HTTP.JwtSigningKey))
-	return t
-}
-
 // Run starts the service, by starting the HTTP server and all the enabled modules,
 // like the database and cache connection.
 //
@@ -113,6 +88,11 @@ func (s *Service) Run() error {
 	return s.server.Start(s.cfg.HTTP.Address)
 }
 
+// Shutdown stops the server gracefully.
+func (s *Service) Shutdown(ctx context.Context) error {
+	return s.server.Shutdown(ctx)
+}
+
 func (s *Service) initConfig(configFileLocation string) error {
 	cfg, err := config.GetConfiguration(configFileLocation)
 	if err != nil {
@@ -120,35 +100,6 @@ func (s *Service) initConfig(configFileLocation string) error {
 	}
 	s.cfg = cfg
 	return nil
-}
-
-func (s *Service) initWebServer() {
-	s.server = echo.New()
-
-	if s.cfg.App.Debug {
-		s.server.Logger.SetLevel(1)
-	} else {
-		s.server.Logger.SetLevel(2)
-		s.server.HideBanner = true
-	}
-
-	// middlewares
-	s.server.Pre(echoMiddleware.RemoveTrailingSlash())
-	s.server.Use(echoMiddleware.Recover())
-	s.server.Use(echoMiddleware.Logger())
-
-	// validator
-	s.server.Validator = newValidator()
-
-	// jwt
-	if s.cfg.HTTP.JwtEnabled {
-		s.jwtHandler = middleware.Jwt([]byte(s.cfg.HTTP.JwtSigningKey))
-	}
-
-	// healthcheck
-	if !s.cfg.HTTP.CustomHealthCheck {
-		s.setHealthCheck()
-	}
 }
 
 func (s *Service) initDatabase() error {
@@ -176,17 +127,6 @@ func (s *Service) initDatabase() error {
 
 	s.db = db
 	return nil
-}
-
-func (s *Service) setHealthCheck() {
-	// very basic health check
-	s.server.GET("/health", func(c echo.Context) error {
-		type healthResponse struct {
-			Status string
-		}
-		resp := healthResponse{Status: "OK"}
-		return c.JSON(http.StatusOK, resp)
-	})
 }
 
 // NewService reates a returns a new instance of Service, which is by

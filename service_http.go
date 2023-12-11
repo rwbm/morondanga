@@ -1,6 +1,14 @@
 package morondanga
 
-import "github.com/labstack/echo/v4"
+import (
+	"net/http"
+	"time"
+
+	"github.com/golang-jwt/jwt"
+	"github.com/labstack/echo/v4"
+	echoMiddleware "github.com/labstack/echo/v4/middleware"
+	"github.com/rwbm/morondanga/middleware"
+)
 
 // Group creates a new router group with prefix and optional group-level middleware.
 func (s *Service) Group(name string) *echo.Group {
@@ -47,4 +55,67 @@ func (s *Service) HEAD(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc
 // with optional route-level middleware.
 func (s *Service) OPTIONS(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route {
 	return s.server.OPTIONS(path, h, m...)
+}
+
+// JWT returns the default jwt handler function, only if it enabled.
+func (s *Service) JWT() echo.MiddlewareFunc {
+	return s.jwtHandler
+}
+
+// JwtToken returns a JWT token as a string. Custom claims can be provided
+// in order to be included. Claims `iat“ and `exp` are reserved.
+func (s *Service) JwtToken(customClaims map[string]interface{}) string {
+	token := jwt.New(jwt.SigningMethodHS512)
+	now := time.Now()
+
+	claims := token.Claims.(jwt.MapClaims)
+	for k, v := range customClaims {
+		claims[k] = v
+	}
+
+	claims["iat"] = now.Unix()
+	claims["exp"] = now.Add(time.Hour * 72).Unix()
+
+	t, _ := token.SignedString([]byte(s.cfg.HTTP.JwtSigningKey))
+	return t
+}
+
+func (s *Service) initWebServer() {
+	s.server = echo.New()
+
+	if s.cfg.App.Debug {
+		s.server.Logger.SetLevel(1)
+	} else {
+		s.server.Logger.SetLevel(2)
+		s.server.HideBanner = true
+	}
+
+	// middlewares
+	s.server.Pre(echoMiddleware.RemoveTrailingSlash())
+	s.server.Use(echoMiddleware.Recover())
+	s.server.Use(echoMiddleware.Logger())
+
+	// validator
+	s.server.Validator = newValidator()
+
+	// jwt
+	if s.cfg.HTTP.JwtEnabled {
+		s.jwtHandler = middleware.Jwt([]byte(s.cfg.HTTP.JwtSigningKey))
+	}
+
+	// healthcheck
+	if !s.cfg.HTTP.CustomHealthCheck {
+		s.setHealthCheck()
+	}
+}
+
+func (s *Service) setHealthCheck() {
+	// very basic health check
+	s.server.GET("/health", func(c echo.Context) error {
+		type healthResponse struct {
+			Status string
+		}
+		resp := healthResponse{Status: "OK"}
+		return c.JSON(http.StatusOK, resp)
+	})
 }

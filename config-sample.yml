@@ -1,0 +1,24 @@
+app:
+  name: "MyApp"
+  debug: true
+
+http:
+  address: 127.0.0.1:8080
+  readTimeout: "5s"
+  writeTimeout: "10s"
+  idleTimeout: "2m"
+  customHealthCheck: false
+  jwtEnabled: false
+  jwtSigningKey: "[my-jwt-signing-key]"
+
+database:
+  enabled: false
+  driver: "mysql"
+  address: "127.0.0.1:3306"
+  user: "user"
+  password: "password"
+  database: "example"
+
+custom:
+  myKeyString: "my string value"
+  myKeyInteger: 12345
