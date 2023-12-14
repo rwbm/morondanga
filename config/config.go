@@ -25,7 +25,7 @@ type (
 		GetApp() *AppConfig
 		GetHTTP() *HttpConfig
 		GetDatabase() *DatabaseConfig
-		GetCustom() map[string]interface{}
+		GetCustomValue(name string) (interface{}, bool)
 		SetDefaults()
 	}
 
