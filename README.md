@@ -19,20 +19,20 @@ The simplest way yo use it is:
 $ go get -u github.com/rwbm/morondanga
 ```
 
-2. Create a configuration file named `config.yml`. You can use the provided in the root of the project as a stating point.
+2. Create a configuration file named `config.yml`. You can use the provided in the root of the project as a starting point.
 
 3. Create a new instance of the service:
 
 ```go
-service, err := morondanga.NewService("")
+service, err := morondanga.NewService("config.yml")
 if err != nil {
     panic(err)
 }
 ```
 
-The function `NewService()` accepts a string with the directory of the config.yml file. If this parameter is empty, the service will try to load if from the current directory and a config directory inside the current path.
+The function `NewService()` accepts a string with the path to the configuration file. If this parameter is empty, the service will try to load a file named `config.yml` in the current working location.s
 
-4. Now can just run the service:
+4. Now you can just run the service:
 
 ```go
 if err = service.Run(); err != nil {
@@ -42,7 +42,7 @@ if err = service.Run(); err != nil {
 }
 ```
 
-This will start a HTTP server listening on port 8080, asuming you didn't change the address in the config.yml file. It will also have a default health check handler that you can call:
+This will start a HTTP server listening on port `8080`, asuming you didn't change the address in the `config.yml` example. It will also have a default health check handler that you can call:
 
 ```
 $ curl http://localhost:8080/health
@@ -90,7 +90,7 @@ if !ok {
 
 Keep in mind that the configuration loader will convert any key value to lower case. For example, if you define an entry like `myCustomKey`, you'll have to use the key `mycustomkey` to retrieve it, or you won't be able to find it. 
 
-What if want to add some extra sections to the config.yml file and I don't want to write my own logic to load the file? Well, we got you covered. Let's say that you want to have another section to the yaml, for example with the data to connect to Kafka topic:
+What if want to add some extra sections to the config file and I don't want to write my own logic to load the file? Well, we got you covered. Let's say that you need to have another section in the yaml, for example with the data to connect Kafka:
 
 ```yaml
 kafka:
@@ -98,7 +98,7 @@ kafka:
     topic: "your_topic_name"
 ```
 
-You can define a custom Configuration structure composed of the config.Config and your additional structure:
+You can define a custom Configuration structure composed of the `config.Config` and your additional fields:
 
 ```go
 type MyCustomConfiguration struct {
@@ -110,7 +110,7 @@ type MyCustomConfiguration struct {
 }
 ```
 
-Then, you can use the function `NewServiceWithCustomConfiguration` to create an instance of the service with a custom configuration object:
+Then, you can use the function `NewServiceWithCustomConfiguration` to create an instance of the service with a custom configuration type:
 
 ```go
 myCustomConfig := new(MyCustomConfiguration)
@@ -122,7 +122,7 @@ if err != nil {
 
 You can now use `myCustomConfig` to access your custom fields (`myCustomConfig.Kafka.BrokerAddress`), as well as the standard service configuration. Keep in mind that if you make any change to this configuration object, it will also change the service configuration. This may or not be a good solution, but at least you don't have to write your own code to load those settings.
 
-But, there's a subtle difference between the standard configuration file and a custom one. When using a custom configuration file, all the service related settings, have to be inside a section named `config`, that matches the name of field `config.Config`. Let's see an example:
+But, there's a small difference between the standard configuration file and a custom one. When using a custom configuration type, all the service related settings, have to be located inside a section named `config`, that matches the name of field `config.Config`. Let's see an example:
 
 ```yaml
 config:
