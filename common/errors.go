@@ -11,6 +11,8 @@ var (
 	ErrJWTInvalid              = errors.New("invalid_jwt")
 	ErrJWTInvalidSigningMethod = errors.New("invalid_jwt_signing")
 	ErrJWTInvalidAlgorithm     = errors.New("invalid_jwt_algo")
+
+	ErrInvalidRequest = errors.New("invalid_request")
 )
 
 type Error struct {
@@ -27,5 +29,12 @@ func NewError(err error) Error {
 	default:
 		e.Error["message"] = v.Error()
 	}
+	return e
+}
+
+func NewErrorMessage(s string) Error {
+	e := Error{}
+	e.Error = make(map[string]interface{})
+	e.Error["message"] = s
 	return e
 }

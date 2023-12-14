@@ -2,6 +2,7 @@ package morondanga
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -20,25 +21,11 @@ import (
 // of modules that can be enabled or disabled by configuration.
 type Service struct {
 	server      *echo.Echo
-	cfg         *config.Config
+	cfg         config.ConfigTemplate
 	log         *logger.Logger
 	db          *gorm.DB
 	healthCheck func(c echo.Context) error
 	jwtHandler  echo.MiddlewareFunc
-}
-
-// WithHttpConfig sets the http configuration, overriding the configuration
-// set in the configuration file or environment variables.
-func (s *Service) WithHttpConfig(httpCfg config.HttpConfig) *Service {
-	s.cfg.HTTP = httpCfg
-	return s
-}
-
-// WithDatabase sets the database configuration, overriding the configuration
-// in the configuration file or environment variables.
-func (s *Service) WithDatabase(dbCfg config.DatabaseConfig) *Service {
-	s.cfg.Database = dbCfg
-	return s
 }
 
 // WithHttpValidator sets the Validator used for the HTTP server.
@@ -60,7 +47,7 @@ func (s *Service) WithHttpHealthCheck(route string, f func(c echo.Context) error
 }
 
 // Configuration returns the configuration instance.
-func (s *Service) Configuration() *config.Config {
+func (s *Service) Configuration() config.ConfigTemplate {
 	return s.cfg
 }
 
@@ -85,7 +72,11 @@ func (s *Service) Database() *gorm.DB {
 // It will always return a non-nil error, which must be checked. If everything is fine
 // and the server was stopped, then a gorm.ErrServerClosed will be returned.
 func (s *Service) Run() error {
-	return s.server.Start(s.cfg.HTTP.Address)
+	if s.Configuration().GetHTTP().JwtEnabled && s.Configuration().GetHTTP().JwtSigningKey == config.DefaultJwtSigningKey {
+		s.Log().Warn("Using default jwt signing key! Please, use a different one")
+	}
+
+	return s.server.Start(s.cfg.GetHTTP().Address)
 }
 
 // Shutdown stops the server gracefully.
@@ -93,12 +84,13 @@ func (s *Service) Shutdown(ctx context.Context) error {
 	return s.server.Shutdown(ctx)
 }
 
-func (s *Service) initConfig(configFileLocation string) error {
-	cfg, err := config.GetConfiguration(configFileLocation)
+func (s *Service) initConfig(cfgFile string, cfg config.ConfigTemplate) error {
+	err := config.GetConfiguration(cfgFile, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to load configuration file: %s", err)
 	}
-	s.cfg = cfg
+
+	s.Configuration().SetDefaults()
 	return nil
 }
 
@@ -114,7 +106,7 @@ func (s *Service) initDatabase() error {
 		},
 	)
 
-	connString := s.cfg.Database.ConnectionString()
+	connString := s.Configuration().GetDatabase().ConnectionString()
 	db, err := gorm.Open(
 		mysql.Open(connString),
 		&gorm.Config{
@@ -129,27 +121,45 @@ func (s *Service) initDatabase() error {
 	return nil
 }
 
-// NewService reates a returns a new instance of Service, which is by
-// default ready to be executed.
-func NewService(configFileLocation string) (*Service, error) {
+// NewService creates a returns a new instance of Service.
+func NewService(configFilePath string) (*Service, error) {
+	cfg := &config.Config{}
+	return newService(configFilePath, cfg)
+}
+
+// NewServiceWithCustomConfiguration creates a returns a new instance of Service
+// with a custom configuration type.
+//
+// This configuration type must follow config.ConfigTemplate
+// interface in order to work, and it must also expose the fields App, HTTP, Database and Custom,
+// and the custom structures, in order for the Marshall function can work properly.
+func NewServiceWithCustomConfiguration(configFilePath string, cfg config.ConfigTemplate) (*Service, error) {
+	if cfg == nil {
+		return nil, errors.New("the configuration template cannot be nil")
+	}
+	return newService(configFilePath, cfg)
+}
+
+func newService(configFilePath string, cfg config.ConfigTemplate) (*Service, error) {
 	s := &Service{}
 
 	// load configuration file
-	if err := s.initConfig(configFileLocation); err != nil {
+	s.cfg = cfg
+	if err := s.initConfig(configFilePath, cfg); err != nil {
 		return nil, err
 	}
 
-	// TODO: get this value from the configuration file
-	s.log = logger.NewLogger(-1)
+	// set logger
+	s.log = logger.NewLogger(logger.Level(s.Configuration().GetApp().LogLevel))
 
-	// connect to database
-	if s.cfg.Database.Enabled {
+	// configure database
+	if s.Configuration().GetDatabase().Enabled {
 		if err := s.initDatabase(); err != nil {
 			return nil, err
 		}
 	}
 
-	// web server config
+	// configure web server
 	s.initWebServer()
 
 	return s, nil
