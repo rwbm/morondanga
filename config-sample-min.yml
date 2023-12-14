@@ -1,0 +1,40 @@
+app:
+  name: "MyApp"
+  logLevel: -1
+
+http:
+  address: 127.0.0.1:8080
+  readTimeout: "5s"
+  writeTimeout: "10s"
+  idleTimeout: "2m"
+  customHealthCheck: false
+  jwtEnabled: true
+  jwtSigningKey: "[jwt-signing-key]"
+  jwtTokenExpiration: "48h"
+
+database:
+  enabled: false
+  driver: "mysql"
+  address: "127.0.0.1:3306"
+  user: "user"
+  password: "password"    
+  database: "example"
+  
+auth:
+  enabled: false
+  route: /users
+  usersTableName: users
+  passwordResetTableName: users_reset
+  hardDelete: true
+  failedLoginBlock: true
+  failedLoginBlockCount: 3
+  minPasswordLen: 8
+  passwordValidationRegex: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$"
+  requireEmailConfirmation: false
+  passwordResetTimeout: "2h"
+  passwordResetCleanTime: "1:00"
+  autoMigrate: false
+
+custom:                                  
+  myKeyString: "my string value"
+  myKeyInteger: 12345

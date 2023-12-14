@@ -7,6 +7,7 @@ import (
 	"github.com/golang-jwt/jwt"
 	"github.com/labstack/echo/v4"
 	echoMiddleware "github.com/labstack/echo/v4/middleware"
+	"github.com/rwbm/morondanga/logger"
 	"github.com/rwbm/morondanga/middleware"
 )
 
@@ -74,21 +75,26 @@ func (s *Service) JwtToken(customClaims map[string]interface{}) string {
 	}
 
 	claims["iat"] = now.Unix()
-	claims["exp"] = now.Add(time.Hour * 72).Unix()
+	claims["exp"] = now.Add(s.Configuration().GetHTTP().JwtTokenExpiration).Unix()
 
-	t, _ := token.SignedString([]byte(s.cfg.HTTP.JwtSigningKey))
+	t, _ := token.SignedString([]byte(s.Configuration().GetHTTP().JwtSigningKey))
 	return t
 }
 
 func (s *Service) initWebServer() {
 	s.server = echo.New()
 
-	if s.cfg.App.Debug {
+	if s.Configuration().GetApp().LogLevel == int(logger.LevelDebug) {
 		s.server.Logger.SetLevel(1)
 	} else {
 		s.server.Logger.SetLevel(2)
 		s.server.HideBanner = true
 	}
+
+	// timeouts
+	s.server.Server.ReadTimeout = s.Configuration().GetHTTP().ReadTimeout
+	s.server.Server.WriteTimeout = s.Configuration().GetHTTP().WriteTimeout
+	s.server.Server.IdleTimeout = s.Configuration().GetHTTP().IdleTimeout
 
 	// middlewares
 	s.server.Pre(echoMiddleware.RemoveTrailingSlash())
@@ -99,18 +105,19 @@ func (s *Service) initWebServer() {
 	s.server.Validator = newValidator()
 
 	// jwt
-	if s.cfg.HTTP.JwtEnabled {
-		s.jwtHandler = middleware.Jwt([]byte(s.cfg.HTTP.JwtSigningKey))
+	if s.Configuration().GetHTTP().JwtEnabled {
+		s.jwtHandler = middleware.Jwt([]byte(s.Configuration().GetHTTP().JwtSigningKey))
 	}
 
 	// healthcheck
-	if !s.cfg.HTTP.CustomHealthCheck {
+	if !s.Configuration().GetHTTP().CustomHealthCheck {
 		s.setHealthCheck()
 	}
 }
 
 func (s *Service) setHealthCheck() {
-	// very basic health check
+	// very basic health check;
+	// we have some ideas to improve this with some custom checkers
 	s.server.GET("/health", func(c echo.Context) error {
 		type healthResponse struct {
 			Status string

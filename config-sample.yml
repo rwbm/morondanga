@@ -1,24 +1,106 @@
+# This is a sample of a configuration file.
+# Comments are provided here for learning purposes, but consider using 
+# the -min version which removes all the comments.
+
+# basic application settings
 app:
+  # application name
   name: "MyApp"
-  debug: true
 
+  debug: true    # TO BE REMOVED SOON
+
+  # -1=DEBUG, 0=INFO, 1=WARNING, 2=ERROR
+  logLevel: -1
+
+# HTTP server configuration
 http:
+  # ip address and port where the HTTP server is going to listen
   address: 127.0.0.1:8080
-  readTimeout: "5s"
-  writeTimeout: "10s"
-  idleTimeout: "2m"
-  customHealthCheck: false
-  jwtEnabled: false
-  jwtSigningKey: "[my-jwt-signing-key]"
 
+  # maximum duration for reading the entire request, including the body
+  readTimeout: "5s"
+
+  # maximum duration before timing out writes of the response
+  writeTimeout: "10s"
+
+  # maximum amount of time to wait for the next request when keep-alives are enabled
+  idleTimeout: "2m"
+
+  # if false, the default health-check will be used
+  customHealthCheck: false
+
+  # if true, the server will setup a JWT handler automatically
+  jwtEnabled: true
+
+  # JWT signing key
+  jwtSigningKey: "[jwt-signing-key]"
+
+  # duration of the generated jwt token
+  jwtTokenExpiration: "48h"
+
+# databse related configuration
 database:
+  # if enabled, GORM will be configured and the server will try to connect on startup 
   enabled: false
+
+  # DB driver; currently only mysql is supported
   driver: "mysql"
+
+  # database server address
   address: "127.0.0.1:3306"
+
+  # db user
   user: "user"
+
+  # db password
   password: "password"
+
+  # default database name       
   database: "example"
 
-custom:
+# authentication module configuration
+auth:
+  # enable/disable the authentication module
+  enabled: false
+
+  # base route to configure the auth endpoints
+  route: /users
+  
+  # table name defined to store the users
+  usersTableName: users
+
+  # table name defined to store the password resets
+  passwordResetTableName: users_reset
+
+  # if true, users are removed from the database; otherwise, records are marked as DELETED, but not physically removed
+  hardDelete: true
+
+  # indicates if the service must block the user after a number of failed login
+  failedLoginBlock: true
+
+  # number of consecutive failed logins before blocking
+  failedLoginBlockCount: 3
+
+  # minimum password length
+  minPasswordLen: 8
+
+  # regular expression for password validation;
+  # in this example: 8 in length, at least one letter in upper case, at least one in lower case and at least one number
+  passwordValidationRegex: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$"
+
+  # requires the user to confirm the email before login in
+  requireEmailConfirmation: false
+
+  # indicates how long lives the provided token for email validation
+  passwordResetTimeout: "2h"
+
+   # sets the time to run the process to clean dead password resets
+  passwordResetCleanTime: "1:00"
+
+  # if true, the service will try to create the necesary tables
+  autoMigrate: false
+
+# user defined keys
+custom:                                  
   myKeyString: "my string value"
   myKeyInteger: 12345

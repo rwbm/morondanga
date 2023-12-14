@@ -1,0 +1,18 @@
+config:
+  app:
+    name: "MyApp"
+    logLevel: -1
+
+  http:
+    address: 127.0.0.1:8080
+    readTimeout: "5s"
+    writeTimeout: "10s"
+    idleTimeout: "2m"
+    customHealthCheck: false
+    jwtEnabled: true
+    jwtSigningKey: "[jwt-signing-key]"
+    jwtTokenExpiration: "48h"
+
+myCustomSection:
+  key1: "value"
+  key2: 12345

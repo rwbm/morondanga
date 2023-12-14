@@ -2,13 +2,33 @@ package config
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/spf13/viper"
 )
 
+var (
+	DefaultAppName          = "MyApp"
+	defaultHttpAddress      = ":8080"
+	DefaultJwtExpiration    = time.Hour * 48
+	DefaultJwtSigningKey    = "default-signing-key"
+	DefaultHttpReadTimeout  = time.Second * 5
+	DefaultHttpWriteTimeout = time.Second * 10
+	DefaultHttpIdleTimeout  = time.Minute * 2
+)
+
 type (
+	// ConfigTemplate defines the interface for custom Configuration structures.
+	ConfigTemplate interface {
+		GetApp() *AppConfig
+		GetHTTP() *HttpConfig
+		GetDatabase() *DatabaseConfig
+		GetCustom() map[string]interface{}
+		SetDefaults()
+	}
+
 	// Config contains the global service settings.
 	Config struct {
 		App      AppConfig
@@ -19,19 +39,21 @@ type (
 
 	// AppConfig holds the application settings
 	AppConfig struct {
-		Name  string
-		Debug bool
+		Name     string
+		Debug    bool
+		LogLevel int
 	}
 
 	// HttpConfig holds the HTTP server related configuration
 	HttpConfig struct {
-		Address           string
-		ReadTimeout       time.Duration
-		WriteTimeout      time.Duration
-		IdleTimeout       time.Duration
-		CustomHealthCheck bool
-		JwtEnabled        bool
-		JwtSigningKey     string
+		Address            string
+		ReadTimeout        time.Duration
+		WriteTimeout       time.Duration
+		IdleTimeout        time.Duration
+		CustomHealthCheck  bool
+		JwtEnabled         bool
+		JwtSigningKey      string
+		JwtTokenExpiration time.Duration
 	}
 
 	// DatabaseConfig stores the database configuration
@@ -46,9 +68,25 @@ type (
 	}
 )
 
-// GetCustom returns the value of a custom configuration, if it's
+func (cfg *Config) GetApp() *AppConfig {
+	return &cfg.App
+}
+
+func (cfg *Config) GetHTTP() *HttpConfig {
+	return &cfg.HTTP
+}
+
+func (cfg *Config) GetDatabase() *DatabaseConfig {
+	return &cfg.Database
+}
+
+func (cfg *Config) GetCustom() map[string]interface{} {
+	return cfg.Custom
+}
+
+// GetCustomValue returns the value of a custom configuration, if it's
 // present. The return type will depend of how the value is stored in the yaml.
-func (cfg *Config) GetCustom(name string) (interface{}, bool) {
+func (cfg *Config) GetCustomValue(name string) (interface{}, bool) {
 	val, ok := cfg.Custom[name]
 	return val, ok
 }
@@ -73,33 +111,84 @@ func (dbCfg *DatabaseConfig) ConnectionString() string {
 	return ""
 }
 
-// GetConfiguration loads the service configuration.
-func GetConfiguration(configFileLocation string) (*Config, error) {
-	var c Config
-
-	// Load the config file
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
-
-	if configFileLocation != "" {
-		viper.AddConfigPath(configFileLocation)
+// SetDefaults checks the configuration values and sets some default where needed.
+func (cfg *Config) SetDefaults() {
+	if app := cfg.GetApp(); app != nil {
+		if app.Name == "" {
+			app.Name = DefaultAppName
+		}
 	}
-	viper.AddConfigPath(".")
-	viper.AddConfigPath("config")
-	viper.AddConfigPath("../config")
 
-	// Load env variables
-	// viper.SetEnvPrefix(prefix)
+	if httpCfg := cfg.GetHTTP(); httpCfg != nil {
+		if httpCfg.Address == "" {
+			httpCfg.Address = defaultHttpAddress
+		}
+		if httpCfg.JwtEnabled {
+			if httpCfg.JwtSigningKey == "" {
+				httpCfg.JwtSigningKey = DefaultJwtSigningKey // DON'T USE THIS ON PRODUCTION!
+			}
+			if httpCfg.JwtTokenExpiration == 0 {
+				httpCfg.JwtTokenExpiration = DefaultJwtExpiration
+			}
+		}
+		if httpCfg.ReadTimeout == 0 {
+			httpCfg.ReadTimeout = DefaultHttpReadTimeout
+		}
+		if httpCfg.WriteTimeout == 0 {
+			httpCfg.WriteTimeout = DefaultHttpWriteTimeout
+		}
+		if httpCfg.IdleTimeout == 0 {
+			httpCfg.IdleTimeout = DefaultHttpIdleTimeout
+		}
+	}
+}
+
+// GetConfiguration loads the service configuration.
+func GetConfiguration(configFilePath string, cfgTemplate ConfigTemplate) error {
+	// parse config file name
+	dir, fileName, fileExt := parseFileName(configFilePath)
+	if fileName != "" {
+		viper.SetConfigName(fileName)
+	} else {
+		viper.SetConfigName("config") // use 'config' as default
+	}
+	if fileExt != "" {
+		viper.SetConfigType(fileExt)
+	} else {
+		viper.SetConfigType("yaml") // use 'yaml' as default
+	}
+
+	// set the path
+	viper.AddConfigPath(dir)
+
+	// read and decode file
+	if err := viper.ReadInConfig(); err != nil {
+		return err
+	}
+	if err := viper.Unmarshal(cfgTemplate); err != nil {
+		return err
+	}
+
+	// env
+	if app := cfgTemplate.GetApp(); app != nil {
+		viper.SetEnvPrefix(app.Name)
+	}
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
-	if err := viper.ReadInConfig(); err != nil {
-		return &c, err
+	return nil
+}
+
+func parseFileName(f string) (string, string, string) {
+	dir := filepath.Dir(f)
+	file := filepath.Base(f)
+	ext := filepath.Ext(file)
+
+	if ext != "" {
+		sepIndex := strings.LastIndex(file, ".")
+		fileName := file[0:sepIndex]
+		return dir, fileName, strings.Replace(ext, ".", "", 1)
 	}
 
-	if err := viper.Unmarshal(&c); err != nil {
-		return &c, err
-	}
-
-	return &c, nil
+	return dir, file, ""
 }
