@@ -1,5 +1,10 @@
 # Morondanga
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/rwbm/morondanga)](https://goreportcard.com/report/github.com/rwbm/morondanga)
+![Test workflow](https://github.com/rwbm/morondanga/actions/workflows/test.yml/badge.svg)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+
 Do you usually find yourself copying and pasting pieces of code from other projects every time you start something new? Do you feel like always starting from scratch? Thinking about the logger, the database access library or the HTTP framwork? 
 
 Well, Monrongan comes to solve this on some way. This is not a framework, but more like a set of libraries that provides a good starting point to build HTTP APIs. It has some default behaviour, and some extra modules that can be enabled or disabled by configuration.
