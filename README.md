@@ -150,6 +150,8 @@ kafka:
     topic: "your_topic_name"
 ```
 
+(WIP)
+
 ## Components
 
 To-do...
@@ -161,7 +163,8 @@ I don't have a clear roadmap, but I would love to add some common components, li
 - Redis
 - Kafka
 - Other databases like Postgres or SQLite
-- Access to AWS services
+- Access to AWS services like S3 and SQS
+- Telemetry
 
 
 Feel free to contact me if there's something you want to add to this library, or better yet: send me a PR and I will be more than happy to review it 😎.

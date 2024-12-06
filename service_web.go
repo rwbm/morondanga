@@ -7,6 +7,7 @@ import (
 	"github.com/golang-jwt/jwt"
 	"github.com/labstack/echo/v4"
 	echoMiddleware "github.com/labstack/echo/v4/middleware"
+	"github.com/rwbm/morondanga/common"
 	"github.com/rwbm/morondanga/logger"
 	"github.com/rwbm/morondanga/middleware"
 )
@@ -74,8 +75,8 @@ func (s *Service) JwtToken(customClaims map[string]interface{}) string {
 		claims[k] = v
 	}
 
-	claims["iat"] = now.Unix()
-	claims["exp"] = now.Add(s.Configuration().GetHTTP().JwtTokenExpiration).Unix()
+	claims[common.JWT_CLAIMS_IAT] = now.Unix()
+	claims[common.JWT_CLAIMS_EXP] = now.Add(s.Configuration().GetHTTP().JwtTokenExpiration).Unix()
 
 	t, _ := token.SignedString([]byte(s.Configuration().GetHTTP().JwtSigningKey))
 	return t
