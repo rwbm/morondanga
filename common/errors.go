@@ -6,6 +6,10 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+const (
+	ERROR_KEY_MESSAGE = "message"
+)
+
 var (
 	ErrJWTMissing              = errors.New("missing_jwt")
 	ErrJWTInvalid              = errors.New("invalid_jwt")
@@ -25,9 +29,9 @@ func NewError(err error) Error {
 
 	switch v := err.(type) {
 	case *echo.HTTPError:
-		e.Error["message"] = v.Message
+		e.Error[ERROR_KEY_MESSAGE] = v.Message
 	default:
-		e.Error["message"] = v.Error()
+		e.Error[ERROR_KEY_MESSAGE] = v.Error()
 	}
 	return e
 }
@@ -35,6 +39,6 @@ func NewError(err error) Error {
 func NewErrorMessage(s string) Error {
 	e := Error{}
 	e.Error = make(map[string]interface{})
-	e.Error["message"] = s
+	e.Error[ERROR_KEY_MESSAGE] = s
 	return e
 }
