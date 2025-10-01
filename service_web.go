@@ -8,8 +8,8 @@ import (
 	"github.com/labstack/echo/v4"
 	echoMiddleware "github.com/labstack/echo/v4/middleware"
 	"github.com/rwbm/morondanga/common"
-	"github.com/rwbm/morondanga/logger"
 	"github.com/rwbm/morondanga/middleware"
+	"go.uber.org/zap"
 )
 
 // Group creates a new router group with prefix and optional group-level middleware.
@@ -75,8 +75,8 @@ func (s *Service) JwtToken(customClaims map[string]interface{}) string {
 		claims[k] = v
 	}
 
-	claims[common.JWT_CLAIMS_IAT] = now.Unix()
-	claims[common.JWT_CLAIMS_EXP] = now.Add(s.Configuration().GetHTTP().JwtTokenExpiration).Unix()
+	claims[common.JwtClaimsIat] = now.Unix()
+	claims[common.JwtClaimsExp] = now.Add(s.Configuration().GetHTTP().JwtTokenExpiration).Unix()
 
 	t, _ := token.SignedString([]byte(s.Configuration().GetHTTP().JwtSigningKey))
 	return t
@@ -85,7 +85,7 @@ func (s *Service) JwtToken(customClaims map[string]interface{}) string {
 func (s *Service) initWebServer() {
 	s.server = echo.New()
 
-	if s.Configuration().GetApp().LogLevel == int(logger.LevelDebug) {
+	if s.Configuration().GetApp().LogLevel == int(zap.DebugLevel) {
 		s.server.Logger.SetLevel(1)
 	} else {
 		s.server.Logger.SetLevel(2)

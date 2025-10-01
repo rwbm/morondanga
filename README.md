@@ -35,7 +35,7 @@ if err != nil {
 }
 ```
 
-The function `NewService()` accepts a string with the path to the configuration file. If this parameter is empty, the service will try to load a file named `config.yml` in the current working location.s
+The function `NewService()` accepts a string with the path to the configuration file. If this parameter is empty, the service will try to load a file named `config.yml` in the current working location.
 
 4. Now you can just run the service:
 
@@ -62,6 +62,8 @@ The configuration file allows you to control the behaviour of the service.
 |-------------------------|-----------------|-----------------------------|
 |`app.name`               |`"MyApp"` | Application name |
 |`app.logLevel`           |`-1` | Logging levels: `-1=DEBUG`, `0=INFO`, `1=WARNING`, `2=ERROR` |
+|`app.logFormat`          |`json` | Format of the log output: `json` or `console` |
+|`app.isDevelopment`      |`true` | Indicates if we're running in development environment |
 |`http.address`           |`127.0.0.1:8080` | Address and port where the HTTP server listens |
 |`http.readTimeout`       |`5 seconds` | Maximum duration for reading the entire request, including the body |
 |`http.writeTimeout`      |`10 seconds` | Maximum duration before timing out writes of the response |
