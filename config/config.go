@@ -39,9 +39,10 @@ type (
 
 	// AppConfig holds the application settings
 	AppConfig struct {
-		Name     string
-		Debug    bool
-		LogLevel int
+		Name          string
+		IsDevelopment bool
+		LogLevel      int
+		LogFormat     string
 	}
 
 	// HttpConfig holds the HTTP server related configuration
@@ -116,6 +117,9 @@ func (cfg *Config) SetDefaults() {
 	if app := cfg.GetApp(); app != nil {
 		if app.Name == "" {
 			app.Name = DefaultAppName
+		}
+		if app.LogFormat == "" {
+			app.LogFormat = "console"
 		}
 	}
 

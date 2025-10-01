@@ -25,7 +25,7 @@ func Jwt(key interface{}) echo.MiddlewareFunc {
 
 // JwtWithConfig defines the middleware to extract access token from the request.
 func JwtWithConfig(config jwtConfig) echo.MiddlewareFunc {
-	extractor := jwtFromHeader(common.HTTP_HEADER_AUTHORIZATION, "Bearer")
+	extractor := jwtFromHeader(common.HttpHeaderAuthprization, "Bearer")
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			auth, err := extractor(c)
@@ -49,14 +49,14 @@ func JwtWithConfig(config jwtConfig) echo.MiddlewareFunc {
 			}
 
 			// validate algorithm
-			if token.Method.Alg() != common.JWT_ALGORITHM_HS512 {
+			if token.Method.Alg() != common.JwtAlgoHS512 {
 				return c.JSON(http.StatusForbidden, common.NewError(common.ErrJWTInvalidAlgorithm))
 			}
 
 			if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 				// put all the claims in the context
 				for k, v := range claims {
-					if k != common.JWT_CLAIMS_IAT && k != common.JWT_CLAIMS_EXP {
+					if k != common.JwtClaimsIat && k != common.JwtClaimsExp {
 						c.Set(k, v)
 					}
 				}

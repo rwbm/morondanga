@@ -1,11 +1,11 @@
 package common
 
 const (
-	HTTP_HEADER_AUTHORIZATION = "Authorization"
+	HttpHeaderAuthprization = "Authorization"
 )
 
 const (
-	JWT_ALGORITHM_HS512 = "HS512"
-	JWT_CLAIMS_IAT      = "iat"
-	JWT_CLAIMS_EXP      = "exp"
+	JwtAlgoHS512 = "HS512"
+	JwtClaimsIat = "iat"
+	JwtClaimsExp = "exp"
 )

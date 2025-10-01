@@ -9,7 +9,8 @@ import (
 	"time"
 
 	"github.com/rwbm/morondanga/config"
-	"github.com/rwbm/morondanga/logger"
+	"github.com/rwbm/morondanga/logging"
+	"go.uber.org/zap"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/driver/mysql"
@@ -22,7 +23,7 @@ import (
 type Service struct {
 	server      *echo.Echo
 	cfg         config.ConfigTemplate
-	log         *logger.Logger
+	log         *zap.Logger
 	db          *gorm.DB
 	healthCheck func(c echo.Context) error
 	jwtHandler  echo.MiddlewareFunc
@@ -52,7 +53,7 @@ func (s *Service) Configuration() config.ConfigTemplate {
 }
 
 // Log returns the logger instance.
-func (s *Service) Log() *logger.Logger {
+func (s *Service) Log() *zap.Logger {
 	return s.log
 }
 
@@ -82,6 +83,53 @@ func (s *Service) Run() error {
 // Shutdown stops the server gracefully.
 func (s *Service) Shutdown(ctx context.Context) error {
 	return s.server.Shutdown(ctx)
+}
+
+// NewService creates a returns a new instance of Service.
+func NewService(configFilePath string) (*Service, error) {
+	cfg := &config.Config{}
+	return newService(configFilePath, cfg)
+}
+
+// NewServiceWithCustomConfiguration creates a returns a new instance of Service
+// with a custom configuration type.
+//
+// This configuration type must follow config.ConfigTemplate
+// interface in order to work, and it must also expose the fields App, HTTP, Database and Custom,
+// and the custom structures, in order for the Marshall function can work properly.
+func NewServiceWithCustomConfiguration(configFilePath string, cfg config.ConfigTemplate) (*Service, error) {
+	if cfg == nil {
+		return nil, errors.New("the configuration template cannot be nil")
+	}
+	return newService(configFilePath, cfg)
+}
+
+func newService(configFilePath string, cfg config.ConfigTemplate) (*Service, error) {
+	s := &Service{}
+
+	// load configuration file
+	s.cfg = cfg
+	if err := s.initConfig(configFilePath, cfg); err != nil {
+		return nil, err
+	}
+
+	// set logger
+	s.log = logging.GetWithConfig(
+		s.Configuration().GetApp().LogLevel,
+		s.Configuration().GetApp().IsDevelopment,
+		s.Configuration().GetApp().LogFormat)
+
+	// configure database
+	if s.Configuration().GetDatabase().Enabled {
+		if err := s.initDatabase(); err != nil {
+			return nil, err
+		}
+	}
+
+	// configure web server
+	s.initWebServer()
+
+	return s, nil
 }
 
 func (s *Service) initConfig(cfgFile string, cfg config.ConfigTemplate) error {
@@ -119,48 +167,4 @@ func (s *Service) initDatabase() error {
 
 	s.db = db
 	return nil
-}
-
-// NewService creates a returns a new instance of Service.
-func NewService(configFilePath string) (*Service, error) {
-	cfg := &config.Config{}
-	return newService(configFilePath, cfg)
-}
-
-// NewServiceWithCustomConfiguration creates a returns a new instance of Service
-// with a custom configuration type.
-//
-// This configuration type must follow config.ConfigTemplate
-// interface in order to work, and it must also expose the fields App, HTTP, Database and Custom,
-// and the custom structures, in order for the Marshall function can work properly.
-func NewServiceWithCustomConfiguration(configFilePath string, cfg config.ConfigTemplate) (*Service, error) {
-	if cfg == nil {
-		return nil, errors.New("the configuration template cannot be nil")
-	}
-	return newService(configFilePath, cfg)
-}
-
-func newService(configFilePath string, cfg config.ConfigTemplate) (*Service, error) {
-	s := &Service{}
-
-	// load configuration file
-	s.cfg = cfg
-	if err := s.initConfig(configFilePath, cfg); err != nil {
-		return nil, err
-	}
-
-	// set logger
-	s.log = logger.NewLogger(logger.Level(s.Configuration().GetApp().LogLevel))
-
-	// configure database
-	if s.Configuration().GetDatabase().Enabled {
-		if err := s.initDatabase(); err != nil {
-			return nil, err
-		}
-	}
-
-	// configure web server
-	s.initWebServer()
-
-	return s, nil
 }
