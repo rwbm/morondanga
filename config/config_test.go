@@ -45,7 +45,7 @@ func TestEnvironmentOverride(t *testing.T) {
 	cfgFilePath := "testdata/config.yml"
 
 	// set env var to override the config value
-	t.Setenv("MYAPP_HTTP_JWTSIGNINGKEY", "new-key-value")
+	t.Setenv("HTTP_JWTSIGNINGKEY", "new-key-value")
 
 	err := GetConfiguration(cfgFilePath, &cfg)
 	assert.NoError(t, err)

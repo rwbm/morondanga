@@ -89,6 +89,9 @@ func (s *Service) initWebServer() {
 		s.server.Logger.SetLevel(1)
 	} else {
 		s.server.Logger.SetLevel(2)
+	}
+
+	if !s.Configuration().GetApp().IsDevelopment {
 		s.server.HideBanner = true
 	}
 
