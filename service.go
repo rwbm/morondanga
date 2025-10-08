@@ -18,7 +18,7 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
-// Service represents the main component, that presents a basic set
+// Represents the main component, that presents a basic set
 // of modules that can be enabled or disabled by configuration.
 type Service struct {
 	server      *echo.Echo
@@ -29,41 +29,41 @@ type Service struct {
 	jwtHandler  echo.MiddlewareFunc
 }
 
-// WithHttpValidator sets the Validator used for the HTTP server.
+// Sets the Validator used for the HTTP server.
 func (s *Service) WithHttpValidator(v Validator) *Service {
 	s.server.Validator = v
 	return s
 }
 
-// WithHttpMiddleware adds middleware to the chain which is run after the router.
+// Adds middleware to the chain which is run after the router.
 func (s *Service) WithHttpMiddleware(middleware ...echo.MiddlewareFunc) *Service {
 	s.server.Use(middleware...)
 	return s
 }
 
-// WithHttpHealthCheck sets the health check handler.
+// Sets the health check handler.
 func (s *Service) WithHttpHealthCheck(route string, f func(c echo.Context) error) *Service {
 	s.healthCheck = f
 	return s
 }
 
-// Configuration returns the configuration instance.
+// Returns the configuration instance.
 func (s *Service) Configuration() config.ConfigTemplate {
 	return s.cfg
 }
 
-// Log returns the logger instance.
+// Logger instance.
 func (s *Service) Log() *zap.Logger {
 	return s.log
 }
 
-// Log returns the database instance, which is just an instance of gorm.DB
+// Returns the database instance, which is just an instance of gorm.DB
 // connected to the configured database.
 func (s *Service) Database() *gorm.DB {
 	return s.db
 }
 
-// Run starts the service, by starting the HTTP server and all the enabled modules,
+// Starts the service, by starting the HTTP server and all the enabled modules,
 // like the database and cache connection.
 //
 // An error may happen for example, if the the database is miss-configured or
@@ -91,7 +91,7 @@ func NewService(configFilePath string) (*Service, error) {
 	return newService(configFilePath, cfg)
 }
 
-// NewServiceWithCustomConfiguration creates a returns a new instance of Service
+// Creates a returns a new instance of Service
 // with a custom configuration type.
 //
 // This configuration type must follow config.ConfigTemplate

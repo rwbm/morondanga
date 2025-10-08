@@ -162,23 +162,16 @@ func GetConfiguration(configFilePath string, cfgTemplate ConfigTemplate) error {
 		viper.SetConfigType("yaml") // use 'yaml' as default
 	}
 
-	// set the path
 	viper.AddConfigPath(dir)
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.AutomaticEnv()
 
-	// read and decode file
 	if err := viper.ReadInConfig(); err != nil {
 		return err
 	}
 	if err := viper.Unmarshal(cfgTemplate); err != nil {
 		return err
 	}
-
-	// env
-	if app := cfgTemplate.GetApp(); app != nil {
-		viper.SetEnvPrefix(app.Name)
-	}
-	viper.AutomaticEnv()
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	return nil
 }
