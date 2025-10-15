@@ -25,6 +25,7 @@ type (
 		GetApp() *AppConfig
 		GetHTTP() *HttpConfig
 		GetDatabase() *DatabaseConfig
+		GetRedis() *RedisConfig
 		GetCustomValue(name string) (interface{}, bool)
 		SetDefaults()
 	}
@@ -34,6 +35,7 @@ type (
 		App      AppConfig
 		HTTP     HttpConfig
 		Database DatabaseConfig
+		Redis    RedisConfig
 		Custom   map[string]interface{}
 	}
 
@@ -67,6 +69,13 @@ type (
 		Password string
 		Database string
 	}
+
+	RedisConfig struct {
+		Enabled  bool
+		Address  string
+		Password string
+		Database int
+	}
 )
 
 func (cfg *Config) GetApp() *AppConfig {
@@ -79,6 +88,10 @@ func (cfg *Config) GetHTTP() *HttpConfig {
 
 func (cfg *Config) GetDatabase() *DatabaseConfig {
 	return &cfg.Database
+}
+
+func (cfg *Config) GetRedis() *RedisConfig {
+	return &cfg.Redis
 }
 
 func (cfg *Config) GetCustom() map[string]interface{} {
