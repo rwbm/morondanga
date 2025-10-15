@@ -6,7 +6,7 @@ type Validator struct {
 	validator *validator.Validate
 }
 
-func (v Validator) Validate(i interface{}) error {
+func (v Validator) Validate(i any) error {
 	return v.validator.Struct(i)
 }
 

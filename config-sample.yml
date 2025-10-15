@@ -7,8 +7,6 @@ app:
   # application name
   name: "MyApp"
 
-  debug: true    # TO BE REMOVED SOON
-
   # -1=DEBUG, 0=INFO, 1=WARNING, 2=ERROR
   logLevel: -1
 
@@ -28,6 +26,9 @@ http:
 
   # if false, the default health-check will be used
   customHealthCheck: false
+
+  # configures if a TraceID is automatically added to the conext
+  addTraceId: true
 
   # if true, the server will setup a JWT handler automatically
   jwtEnabled: true

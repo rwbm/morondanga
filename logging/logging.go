@@ -15,7 +15,6 @@ var (
 	logger   *zap.Logger
 	cfgCache = struct {
 		level  int
-		isDev  bool
 		format string
 	}{
 		level:  int(zapcore.InfoLevel),
@@ -39,23 +38,22 @@ func Get() *zap.Logger {
 		return logger
 	}
 
-	logger = configLogger(cfgCache.level, cfgCache.isDev, cfgCache.format)
+	logger = configLogger(cfgCache.level, cfgCache.format)
 	return logger
 }
 
 // GetWithConfig returns a logger instance.
-func GetWithConfig(level int, isDev bool, format string) *zap.Logger {
+func GetWithConfig(level int, format string) *zap.Logger {
 	loggerMu.Lock()
 	defer loggerMu.Unlock()
 
 	cfgCache.level = level
-	cfgCache.isDev = isDev
 	if format == "" {
 		format = cfgCache.format
 	}
 	cfgCache.format = format
 
-	logger = configLogger(level, isDev, cfgCache.format)
+	logger = configLogger(level, cfgCache.format)
 	return logger
 }
 
@@ -131,14 +129,8 @@ func LoggerFromContext(ctx context.Context) (*zap.Logger, bool) {
 	return l, true
 }
 
-func configLogger(level int, isDev bool, format string) *zap.Logger {
-	var encoderCfg zapcore.EncoderConfig
-	if isDev {
-		encoderCfg = zap.NewDevelopmentEncoderConfig()
-	} else {
-		encoderCfg = zap.NewProductionEncoderConfig()
-	}
-
+func configLogger(level int, format string) *zap.Logger {
+	encoderCfg := zap.NewProductionEncoderConfig()
 	encoderCfg.TimeKey = "timestamp"
 	encoderCfg.EncodeTime = zapcore.ISO8601TimeEncoder
 

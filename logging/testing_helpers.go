@@ -11,7 +11,6 @@ func ResetForTests() {
 	defer loggerMu.Unlock()
 	logger = nil
 	cfgCache.level = int(zapcore.InfoLevel)
-	cfgCache.isDev = false
 	cfgCache.format = "json"
 }
 

@@ -91,11 +91,7 @@ func (s *Service) initWebServer() {
 		s.server.Logger.SetLevel(2)
 	}
 
-	if !s.Configuration().GetApp().IsDevelopment {
-		s.server.HideBanner = true
-	}
-
-	// timeouts
+	s.server.HideBanner = true
 	s.server.Server.ReadTimeout = s.Configuration().GetHTTP().ReadTimeout
 	s.server.Server.WriteTimeout = s.Configuration().GetHTTP().WriteTimeout
 	s.server.Server.IdleTimeout = s.Configuration().GetHTTP().IdleTimeout
@@ -103,8 +99,10 @@ func (s *Service) initWebServer() {
 	// middlewares
 	s.server.Pre(echoMiddleware.RemoveTrailingSlash())
 	s.server.Use(echoMiddleware.Recover())
-	s.server.Use(middleware.Trace())
 	s.server.Use(echoMiddleware.Logger())
+	if s.Configuration().GetHTTP().AddTraceID {
+		s.server.Use(middleware.Trace())
+	}
 
 	// validator
 	s.server.Validator = newValidator()

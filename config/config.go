@@ -39,10 +39,9 @@ type (
 
 	// AppConfig holds the application settings
 	AppConfig struct {
-		Name          string
-		IsDevelopment bool
-		LogLevel      int
-		LogFormat     string
+		Name      string
+		LogLevel  int
+		LogFormat string
 	}
 
 	// HttpConfig holds the HTTP server related configuration
@@ -52,6 +51,7 @@ type (
 		WriteTimeout       time.Duration
 		IdleTimeout        time.Duration
 		CustomHealthCheck  bool
+		AddTraceID         bool
 		JwtEnabled         bool
 		JwtSigningKey      string
 		JwtTokenExpiration time.Duration
