@@ -10,7 +10,7 @@ import (
 )
 
 type Client struct {
-	base *redis.Client
+	Base *redis.Client
 }
 
 func NewClient(address, password string, database int) (*Client, error) {
@@ -31,5 +31,5 @@ func NewClient(address, password string, database int) (*Client, error) {
 		return nil, fmt.Errorf("redis ping failed: %w", err)
 	}
 
-	return &Client{base: base}, nil
+	return &Client{base}, nil
 }
