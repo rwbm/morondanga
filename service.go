@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"time"
 
@@ -71,18 +72,42 @@ func (s *Service) Database() *gorm.DB {
 // have to be handled by the caller.
 //
 // It will always return a non-nil error, which must be checked. If everything is fine
-// and the server was stopped, then a gorm.ErrServerClosed will be returned.
+// and the server was stopped, then http.ErrServerClosed will be returned.
 func (s *Service) Run() error {
 	if s.Configuration().GetHTTP().JwtEnabled && s.Configuration().GetHTTP().JwtSigningKey == config.DefaultJwtSigningKey {
 		s.Log().Warn("Using default jwt signing key! Please, use a different one")
 	}
 
-	return s.server.Start(s.cfg.GetHTTP().Address)
+	err := s.server.Start(s.cfg.GetHTTP().Address)
+	if errors.Is(err, http.ErrServerClosed) {
+		return http.ErrServerClosed
+	}
+	if err != nil {
+		return fmt.Errorf("http server start: %w", err)
+	}
+	return nil
 }
 
 // Shutdown stops the server gracefully.
 func (s *Service) Shutdown(ctx context.Context) error {
-	return s.server.Shutdown(ctx)
+	var errs []error
+
+	if s.server != nil {
+		if err := s.server.Shutdown(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("http server shutdown: %w", err))
+		}
+	}
+
+	if s.db != nil {
+		sqlDB, err := s.db.DB()
+		if err != nil {
+			errs = append(errs, fmt.Errorf("database handle: %w", err))
+		} else if err := sqlDB.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("database close: %w", err))
+		}
+	}
+
+	return errors.Join(errs...)
 }
 
 // NewService creates a returns a new instance of Service.

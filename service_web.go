@@ -103,6 +103,7 @@ func (s *Service) initWebServer() {
 	// middlewares
 	s.server.Pre(echoMiddleware.RemoveTrailingSlash())
 	s.server.Use(echoMiddleware.Recover())
+	s.server.Use(middleware.Trace())
 	s.server.Use(echoMiddleware.Logger())
 
 	// validator
