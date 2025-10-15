@@ -1,6 +1,7 @@
 app:
-  name: "MyApp"
+  name: "myapp"
   logLevel: -1
+  logFormat: json
 
 http:
   address: 127.0.0.1:8080
@@ -35,6 +36,12 @@ auth:
   passwordResetTimeout: "2h"
   passwordResetCleanTime: "1:00"
   autoMigrate: false
+
+redis:
+  enabled: false
+  address: 127.0.0.1:6379
+  password: secret
+  database: 0
 
 custom:                                  
   myKeyString: "my string value"

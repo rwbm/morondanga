@@ -5,10 +5,13 @@
 # basic application settings
 app:
   # application name
-  name: "MyApp"
+  name: "myapp"
 
   # -1=DEBUG, 0=INFO, 1=WARNING, 2=ERROR
   logLevel: -1
+
+  # console | json
+  logFormat: json
 
 # HTTP server configuration
 http:
@@ -59,7 +62,7 @@ database:
   # default database name       
   database: "example"
 
-# authentication module configuration
+# authentication module configuration (not implemented)
 auth:
   # enable/disable the authentication module
   enabled: false
@@ -100,6 +103,19 @@ auth:
 
   # if true, the service will try to create the necesary tables
   autoMigrate: false
+
+redis:
+  # enable/disable the redis client
+  enabled: false
+
+  # redis server address
+  address: 127.0.0.1:6379
+  
+  # redis password
+  password: secret
+
+  # datavase to use; default value is 0
+  database: 0
 
 # user defined keys
 custom:                                  

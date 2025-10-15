@@ -11,6 +11,7 @@ import (
 
 	"github.com/rwbm/morondanga/config"
 	"github.com/rwbm/morondanga/logging"
+	"github.com/rwbm/morondanga/pkg/redis"
 	"go.uber.org/zap"
 
 	"github.com/labstack/echo/v4"
@@ -26,6 +27,7 @@ type Service struct {
 	cfg         config.ConfigTemplate
 	log         *zap.Logger
 	db          *gorm.DB
+	redisClient *redis.Client
 	healthCheck func(c echo.Context) error
 	jwtHandler  echo.MiddlewareFunc
 }
@@ -150,6 +152,13 @@ func newService(configFilePath string, cfg config.ConfigTemplate) (*Service, err
 		}
 	}
 
+	// configure redis
+	if s.Configuration().GetRedis().Enabled {
+		if err := s.initRedis(); err != nil {
+			return nil, err
+		}
+	}
+
 	// configure web server
 	s.initWebServer()
 
@@ -190,5 +199,19 @@ func (s *Service) initDatabase() error {
 	}
 
 	s.db = db
+	return nil
+}
+
+func (s *Service) initRedis() error {
+	redisCfg := s.Configuration().GetRedis()
+	cli, err := redis.NewClient(
+		redisCfg.Address,
+		redisCfg.Password,
+		redisCfg.Database,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create redis client: %w", err)
+	}
+	s.redisClient = cli
 	return nil
 }
