@@ -15,7 +15,7 @@ func TestGetWithConfigCachesLogger(t *testing.T) {
 	ResetForTests()
 	t.Cleanup(ResetForTests)
 	level := int(zapcore.DebugLevel)
-	l1 := GetWithConfig(level, true, "console")
+	l1 := GetWithConfig(level, "console")
 	require.NotNil(t, l1)
 
 	l2 := Get()
@@ -23,7 +23,6 @@ func TestGetWithConfigCachesLogger(t *testing.T) {
 
 	loggerMu.RLock()
 	assert.Equal(t, level, cfgCache.level)
-	assert.True(t, cfgCache.isDev)
 	assert.Equal(t, "console", cfgCache.format)
 	loggerMu.RUnlock()
 }

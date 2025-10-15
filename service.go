@@ -141,7 +141,6 @@ func newService(configFilePath string, cfg config.ConfigTemplate) (*Service, err
 	// set logger
 	s.log = logging.GetWithConfig(
 		s.Configuration().GetApp().LogLevel,
-		s.Configuration().GetApp().IsDevelopment,
 		s.Configuration().GetApp().LogFormat)
 
 	// configure database
@@ -169,13 +168,13 @@ func (s *Service) initConfig(cfgFile string, cfg config.ConfigTemplate) error {
 
 func (s *Service) initDatabase() error {
 	newLogger := gormlogger.New(
-		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
+		log.New(os.Stdout, "\r\n", log.LstdFlags),
 		gormlogger.Config{
-			SlowThreshold:             time.Second,     // Slow SQL threshold
-			LogLevel:                  gormlogger.Info, // Log level
-			IgnoreRecordNotFoundError: true,            // Ignore ErrRecordNotFound error for logger
-			ParameterizedQueries:      true,            // Don't include params in the SQL log
-			Colorful:                  true,            // Disable color
+			SlowThreshold:             time.Second,
+			LogLevel:                  gormlogger.Info,
+			IgnoreRecordNotFoundError: true,
+			ParameterizedQueries:      true,
+			Colorful:                  true,
 		},
 	)
 

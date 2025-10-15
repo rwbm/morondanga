@@ -17,6 +17,7 @@ import (
 const (
 	defaultTraceHeader       = echo.HeaderXRequestID
 	requestLoggerContextKey  = "request_logger"
+	traceIdContextKey        = "trace_id"
 	fallbackTraceIDSeparator = "-"
 )
 
@@ -55,6 +56,7 @@ func TraceWithConfig(cfg TraceConfig) echo.MiddlewareFunc {
 				traceID = fallbackTraceID()
 			}
 
+			c.Set(traceIdContextKey, traceID)
 			c.Response().Header().Set(header, traceID)
 
 			ctx := logging.ContextWithTraceID(c.Request().Context(), traceID)

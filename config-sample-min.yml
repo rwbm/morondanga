@@ -8,6 +8,7 @@ http:
   writeTimeout: "10s"
   idleTimeout: "2m"
   customHealthCheck: false
+  addTraceId: true
   jwtEnabled: true
   jwtSigningKey: "[jwt-signing-key]"
   jwtTokenExpiration: "48h"
