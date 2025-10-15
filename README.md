@@ -77,6 +77,10 @@ The configuration file allows you to control the behaviour of the service.
 |`database.user`          |`""` | Database username |
 |`database.password`      |`""` | Database password |
 |`database.database`      |`""` | Database name |
+|`redis.enabled`          |`false` | Enables/disables the redis integration |
+|`redis.address`          |`""` | Redis server address |
+|`redis.password`         |`""` | Redis password |
+|`redis.database`         |`0` | Database number |
 
 You can also define some custom entries. Those must be defined under the `custom` section. For example:
 
@@ -152,21 +156,13 @@ kafka:
     topic: "your_topic_name"
 ```
 
-(WIP)
-
-## Components
-
-To-do...
-
 ## Roadmap
 
 I don't have a clear roadmap, but I would love to add some common components, like:
 
-- Redis
 - Kafka
 - Other databases like Postgres or SQLite
 - Access to AWS services like S3 and SQS
 - Telemetry
-
 
 Feel free to contact me if there's something you want to add to this library, or better yet: send me a PR and I will be more than happy to review it 😎.

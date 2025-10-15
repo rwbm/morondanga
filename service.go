@@ -66,6 +66,11 @@ func (s *Service) Database() *gorm.DB {
 	return s.db
 }
 
+// Returns the redis client instance, if it's enabled.
+func (s *Service) Redis() *redis.Client {
+	return s.redisClient
+}
+
 // Starts the service, by starting the HTTP server and all the enabled modules,
 // like the database and cache connection.
 //
