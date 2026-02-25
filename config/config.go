@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -120,6 +121,18 @@ func (dbCfg *DatabaseConfig) ConnectionString() string {
 				dbCfg.Address,
 				dbCfg.Database,
 			)
+		case "postgres":
+			userInfo := url.UserPassword(dbCfg.User, dbCfg.Password)
+			u := url.URL{
+				Scheme: "postgres",
+				User:   userInfo,
+				Host:   dbCfg.Address,
+				Path:   dbCfg.Database,
+			}
+			q := url.Values{}
+			q.Set("sslmode", "disable")
+			u.RawQuery = q.Encode()
+			return u.String()
 		}
 	}
 	return ""

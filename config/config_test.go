@@ -72,3 +72,17 @@ func TestParseFileName(t *testing.T) {
 		})
 	}
 }
+
+func TestDatabaseConnectionStringPostgres(t *testing.T) {
+	cfg := DatabaseConfig{
+		Enabled:  true,
+		Driver:   "postgres",
+		Address:  "localhost:5432",
+		User:     "postgres",
+		Password: "postgres",
+		Database: "food_bot",
+	}
+
+	dsn := cfg.ConnectionString()
+	assert.Equal(t, "postgres://postgres:postgres@localhost:5432/food_bot?sslmode=disable", dsn)
+}

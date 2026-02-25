@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/rwbm/morondanga/config"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 )
@@ -30,6 +32,19 @@ type Service struct {
 	redisClient *redis.Client
 	healthCheck func(c echo.Context) error
 	jwtHandler  echo.MiddlewareFunc
+}
+
+var dialectorFactory = defaultDialectorFactory
+
+func defaultDialectorFactory(driver, dsn string) (gorm.Dialector, error) {
+	switch strings.ToLower(strings.TrimSpace(driver)) {
+	case "mysql":
+		return mysql.Open(dsn), nil
+	case "postgres":
+		return postgres.Open(dsn), nil
+	default:
+		return nil, fmt.Errorf("unsupported database driver: %s", driver)
+	}
 }
 
 // Sets the Validator used for the HTTP server.
@@ -192,9 +207,14 @@ func (s *Service) initDatabase() error {
 		},
 	)
 
-	connString := s.Configuration().GetDatabase().ConnectionString()
+	dbCfg := s.Configuration().GetDatabase()
+	connString := dbCfg.ConnectionString()
+	dialector, err := dialectorFactory(dbCfg.Driver, connString)
+	if err != nil {
+		return err
+	}
 	db, err := gorm.Open(
-		mysql.Open(connString),
+		dialector,
 		&gorm.Config{
 			Logger: newLogger,
 		},

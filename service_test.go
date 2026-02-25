@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
+	"fmt"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -18,6 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	"gorm.io/gorm/schema"
 )
 
 func TestServiceRunReturnsServerClosed(t *testing.T) {
@@ -100,6 +103,78 @@ func TestServiceShutdownClosesDatabase(t *testing.T) {
 	assert.Eventually(t, func() bool {
 		return atomic.LoadInt32(&sqlCloseCount) > 0
 	}, time.Second, 10*time.Millisecond)
+}
+
+func TestServiceInitDatabasePostgres(t *testing.T) {
+	logging.ResetForTests()
+	defer logging.ResetForTests()
+
+	dsn := "postgres://user:pass@localhost:5432/db?sslmode=disable"
+	var gotDriver string
+	var gotDsn string
+
+	originalFactory := dialectorFactory
+	dialectorFactory = func(driver, dsn string) (gorm.Dialector, error) {
+		gotDriver = driver
+		gotDsn = dsn
+		return stubDialector{name: driver}, nil
+	}
+	t.Cleanup(func() { dialectorFactory = originalFactory })
+
+	s := &Service{
+		cfg: &config.Config{
+			Database: config.DatabaseConfig{
+				Enabled:  true,
+				Driver:   "postgres",
+				Address:  "localhost:5432",
+				User:     "user",
+				Password: "pass",
+				Database: "db",
+			},
+		},
+		log: zap.NewNop(),
+	}
+
+	assert.NoError(t, s.initDatabase())
+	assert.Equal(t, "postgres", gotDriver)
+	assert.Equal(t, dsn, gotDsn)
+	assert.NotNil(t, s.db)
+}
+
+type stubDialector struct {
+	name string
+}
+
+func (d stubDialector) Name() string {
+	return d.name
+}
+
+func (d stubDialector) Initialize(db *gorm.DB) error {
+	return nil
+}
+
+func (d stubDialector) Migrator(db *gorm.DB) gorm.Migrator {
+	return nil
+}
+
+func (d stubDialector) DataTypeOf(*schema.Field) string {
+	return ""
+}
+
+func (d stubDialector) DefaultValueOf(*schema.Field) clause.Expression {
+	return nil
+}
+
+func (d stubDialector) BindVarTo(writer clause.Writer, stmt *gorm.Statement, v interface{}) {
+	_, _ = writer.WriteString(fmt.Sprint(v))
+}
+
+func (d stubDialector) QuoteTo(writer clause.Writer, str string) {
+	_, _ = writer.WriteString(str)
+}
+
+func (d stubDialector) Explain(sql string, vars ...interface{}) string {
+	return fmt.Sprintf(sql, vars...)
 }
 
 var (
