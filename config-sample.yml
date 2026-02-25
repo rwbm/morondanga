@@ -47,7 +47,7 @@ database:
   # if enabled, GORM will be configured and the server will try to connect on startup 
   enabled: false
 
-  # DB driver; currently only mysql is supported
+  # DB driver; supported values: mysql, postgres
   driver: "mysql"
 
   # database server address

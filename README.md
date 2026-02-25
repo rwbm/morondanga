@@ -72,7 +72,7 @@ The configuration file allows you to control the behaviour of the service.
 |`http.jwtEnabled`        |`false` | Enable/disable a JWT configuration |
 |`http.jwtSigningKey`     |`"default-signing-key"` | JWT signing key. DON'T use the default value on production |
 |`database.enabled`       |`false` | Enables/disables the database integration |
-|`database.driver`        |`""` | Database driver. Currently supported: `mysql` |
+|`database.driver`        |`""` | Database driver. Supported: `mysql`, `postgres` |
 |`database.address`       |`""` | Database server address |
 |`database.user`          |`""` | Database username |
 |`database.password`      |`""` | Database password |
