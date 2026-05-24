@@ -27,17 +27,19 @@ type (
 		GetHTTP() *HttpConfig
 		GetDatabase() *DatabaseConfig
 		GetRedis() *RedisConfig
+		GetObservability() *ObservabilityConfig
 		GetCustomValue(name string) (interface{}, bool)
 		SetDefaults()
 	}
 
 	// Config contains the global service settings.
 	Config struct {
-		App      AppConfig
-		HTTP     HttpConfig
-		Database DatabaseConfig
-		Redis    RedisConfig
-		Custom   map[string]interface{}
+		App             AppConfig
+		HTTP            HttpConfig
+		Database        DatabaseConfig
+		Redis           RedisConfig
+		Observability   ObservabilityConfig
+		Custom          map[string]interface{}
 	}
 
 	// AppConfig holds the application settings
@@ -77,6 +79,15 @@ type (
 		Password string
 		Database int
 	}
+
+	// ObservabilityConfig holds OpenTelemetry settings.
+	ObservabilityConfig struct {
+		// Enabled activates OTLP trace + log export and the zap bridge.
+		Enabled bool
+		// Endpoint is the OTLP HTTP base URL (e.g. http://localhost:4318).
+		// Defaults to http://localhost:4318 when empty.
+		Endpoint string
+	}
 )
 
 func (cfg *Config) GetApp() *AppConfig {
@@ -93,6 +104,10 @@ func (cfg *Config) GetDatabase() *DatabaseConfig {
 
 func (cfg *Config) GetRedis() *RedisConfig {
 	return &cfg.Redis
+}
+
+func (cfg *Config) GetObservability() *ObservabilityConfig {
+	return &cfg.Observability
 }
 
 func (cfg *Config) GetCustom() map[string]interface{} {

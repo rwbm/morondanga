@@ -9,6 +9,7 @@ import (
 	echoMiddleware "github.com/labstack/echo/v4/middleware"
 	"github.com/rwbm/morondanga/common"
 	"github.com/rwbm/morondanga/middleware"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 	"go.uber.org/zap"
 )
 
@@ -100,6 +101,9 @@ func (s *Service) initWebServer() {
 	s.server.Pre(echoMiddleware.RemoveTrailingSlash())
 	s.server.Use(echoMiddleware.Recover())
 	s.server.Use(echoMiddleware.Logger())
+	if obs := s.Configuration().GetObservability(); obs != nil && obs.Enabled {
+		s.server.Use(otelecho.Middleware(s.Configuration().GetApp().Name))
+	}
 	if s.Configuration().GetHTTP().AddTraceID {
 		s.server.Use(middleware.Trace())
 	}

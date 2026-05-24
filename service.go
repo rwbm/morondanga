@@ -13,6 +13,7 @@ import (
 	"github.com/rwbm/morondanga/config"
 	"github.com/rwbm/morondanga/logging"
 	"github.com/rwbm/morondanga/pkg/redis"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/labstack/echo/v4"
@@ -25,13 +26,15 @@ import (
 // Represents the main component, that presents a basic set
 // of modules that can be enabled or disabled by configuration.
 type Service struct {
-	server      *echo.Echo
-	cfg         config.ConfigTemplate
-	log         *zap.Logger
-	db          *gorm.DB
-	redisClient *redis.Client
-	healthCheck func(c echo.Context) error
-	jwtHandler  echo.MiddlewareFunc
+	server       *echo.Echo
+	cfg          config.ConfigTemplate
+	log          *zap.Logger
+	db           *gorm.DB
+	redisClient  *redis.Client
+	healthCheck  func(c echo.Context) error
+	jwtHandler   echo.MiddlewareFunc
+	tracer       trace.Tracer
+	otelShutdown func()
 }
 
 var dialectorFactory = defaultDialectorFactory
@@ -129,6 +132,10 @@ func (s *Service) Shutdown(ctx context.Context) error {
 		}
 	}
 
+	if s.otelShutdown != nil {
+		s.otelShutdown()
+	}
+
 	return errors.Join(errs...)
 }
 
@@ -160,10 +167,20 @@ func newService(configFilePath string, cfg config.ConfigTemplate) (*Service, err
 		return nil, err
 	}
 
-	// set logger
+	// init observability (OTEL) — must be before logger so bridge is active
+	if err := s.initObservability(); err != nil {
+		return nil, fmt.Errorf("init observability: %w", err)
+	}
+
+	// set logger (with optional otelzap bridge when observability is enabled)
+	obs := s.Configuration().GetObservability()
 	s.log = logging.GetWithConfig(
 		s.Configuration().GetApp().LogLevel,
-		s.Configuration().GetApp().LogFormat)
+		s.Configuration().GetApp().LogFormat,
+		logging.OTELOptions{
+			Enabled:     obs != nil && obs.Enabled,
+			ServiceName: s.Configuration().GetApp().Name,
+		})
 
 	// configure database
 	if s.Configuration().GetDatabase().Enabled {
