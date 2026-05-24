@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"go.opentelemetry.io/contrib/bridges/otelzap"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -42,8 +43,15 @@ func Get() *zap.Logger {
 	return logger
 }
 
-// GetWithConfig returns a logger instance.
-func GetWithConfig(level int, format string) *zap.Logger {
+// OTELOptions controls the optional OTEL zap bridge.
+type OTELOptions struct {
+	Enabled     bool
+	ServiceName string
+}
+
+// GetWithConfig returns a logger instance. When otel.Enabled is true,
+// a zap→OTEL bridge core is tee'd in so every log line is also exported via OTLP.
+func GetWithConfig(level int, format string, otel ...OTELOptions) *zap.Logger {
 	loggerMu.Lock()
 	defer loggerMu.Unlock()
 
@@ -53,7 +61,14 @@ func GetWithConfig(level int, format string) *zap.Logger {
 	}
 	cfgCache.format = format
 
-	logger = configLogger(level, cfgCache.format)
+	base := configLogger(level, cfgCache.format)
+
+	if len(otel) > 0 && otel[0].Enabled {
+		otelCore := otelzap.NewCore(otel[0].ServiceName)
+		base = zap.New(zapcore.NewTee(base.Core(), otelCore), zap.WithCaller(true))
+	}
+
+	logger = base
 	return logger
 }
 
