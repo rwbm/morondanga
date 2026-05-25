@@ -49,7 +49,6 @@ func defaultDialectorFactory(driver, dsn string) (gorm.Dialector, error) {
 		return nil, fmt.Errorf("unsupported database driver: %s", driver)
 	}
 }
-
 // Sets the Validator used for the HTTP server.
 func (s *Service) WithHttpValidator(v Validator) *Service {
 	s.server.Validator = v
@@ -88,7 +87,6 @@ func (s *Service) Database() *gorm.DB {
 func (s *Service) Redis() *redis.Client {
 	return s.redisClient
 }
-
 // Starts the service, by starting the HTTP server and all the enabled modules,
 // like the database and cache connection.
 //
