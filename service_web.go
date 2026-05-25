@@ -1,7 +1,10 @@
 package morondanga
 
 import (
+	"bytes"
+	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt"
@@ -13,6 +16,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
+
+const maxBodyLogSize = 64 * 1024
 
 // Group creates a new router group with prefix and optional group-level middleware.
 func (s *Service) Group(name string) *echo.Group {
@@ -134,6 +139,18 @@ func (s *Service) httpRequestLogger() echo.MiddlewareFunc {
 				zap.String("method", req.Method),
 				zap.String("uri", req.RequestURI),
 				zap.String("ip", c.RealIP()),
+				zap.Any("headers", flatHeaders(req.Header)),
+			}
+			if req.Body != nil && req.Body != http.NoBody {
+				rawBody, _ := io.ReadAll(req.Body)
+				req.Body = io.NopCloser(bytes.NewReader(rawBody))
+				if len(rawBody) > 0 {
+					logBody := rawBody
+					if len(logBody) > maxBodyLogSize {
+						logBody = logBody[:maxBodyLogSize]
+					}
+					inFields = append(inFields, zap.String("body", string(logBody)))
+				}
 			}
 			if sc := trace.SpanFromContext(req.Context()).SpanContext(); sc.IsValid() {
 				inFields = append(inFields,
@@ -142,6 +159,9 @@ func (s *Service) httpRequestLogger() echo.MiddlewareFunc {
 				)
 			}
 			s.log.Info("Incoming request", inFields...)
+
+			resCapture := newResponseCapture(c.Response().Writer)
+			c.Response().Writer = resCapture
 
 			start := time.Now()
 			err := next(c)
@@ -152,6 +172,10 @@ func (s *Service) httpRequestLogger() echo.MiddlewareFunc {
 				zap.String("uri", req.RequestURI),
 				zap.Int("status", res.Status),
 				zap.Duration("latency", time.Since(start)),
+				zap.Any("headers", flatHeaders(res.Header())),
+			}
+			if body := resCapture.bytes(); len(body) > 0 {
+				outFields = append(outFields, zap.String("body", string(body)))
 			}
 			if sc := trace.SpanFromContext(req.Context()).SpanContext(); sc.IsValid() {
 				outFields = append(outFields,
@@ -164,6 +188,53 @@ func (s *Service) httpRequestLogger() echo.MiddlewareFunc {
 			return err
 		}
 	}
+}
+
+// flatHeaders converts http.Header to a flat map for structured logging.
+// Authorization and X-API-Key values are redacted.
+func flatHeaders(h http.Header) map[string]string {
+	out := make(map[string]string, len(h))
+	for k, vals := range h {
+		if strings.EqualFold(k, "Authorization") || strings.EqualFold(k, "X-Api-Key") {
+			out[k] = "[REDACTED]"
+			continue
+		}
+		if len(vals) > 0 {
+			out[k] = vals[0]
+		}
+	}
+	return out
+}
+
+type responseCapture struct {
+	http.ResponseWriter
+	buf *bytes.Buffer
+}
+
+func newResponseCapture(w http.ResponseWriter) *responseCapture {
+	return &responseCapture{ResponseWriter: w, buf: &bytes.Buffer{}}
+}
+
+func (rc *responseCapture) Write(b []byte) (int, error) {
+	if rc.buf.Len() < maxBodyLogSize {
+		remaining := maxBodyLogSize - rc.buf.Len()
+		if len(b) <= remaining {
+			rc.buf.Write(b)
+		} else {
+			rc.buf.Write(b[:remaining])
+		}
+	}
+	return rc.ResponseWriter.Write(b)
+}
+
+func (rc *responseCapture) Flush() {
+	if f, ok := rc.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+func (rc *responseCapture) bytes() []byte {
+	return rc.buf.Bytes()
 }
 
 func (s *Service) setHealthCheck() {
