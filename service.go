@@ -86,6 +86,13 @@ func (s *Service) Log() *zap.Logger {
 	return s.log
 }
 
+// SetLogger replaces the service logger. Call this after application-level
+// initialization (e.g. inject.Load) so the HTTP middleware uses the
+// fully-configured logger, including fields like "version".
+func (s *Service) SetLogger(log *zap.Logger) {
+	s.log = log
+}
+
 // Returns the database instance, which is just an instance of gorm.DB
 // connected to the configured database.
 func (s *Service) Database() *gorm.DB {
