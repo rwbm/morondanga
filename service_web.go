@@ -10,6 +10,7 @@ import (
 	"github.com/rwbm/morondanga/common"
 	"github.com/rwbm/morondanga/middleware"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -100,10 +101,12 @@ func (s *Service) initWebServer() {
 	// middlewares
 	s.server.Pre(echoMiddleware.RemoveTrailingSlash())
 	s.server.Use(echoMiddleware.Recover())
-	s.server.Use(echoMiddleware.Logger())
+	// otelecho must be registered before the request logger so the span is
+	// already in the context when we log latency + status.
 	if obs := s.Configuration().GetObservability(); obs != nil && obs.Enabled {
 		s.server.Use(otelecho.Middleware(s.Configuration().GetApp().Name))
 	}
+	s.server.Use(s.httpRequestLogger())
 	if s.Configuration().GetHTTP().AddTraceID {
 		s.server.Use(middleware.Trace())
 	}
@@ -119,6 +122,36 @@ func (s *Service) initWebServer() {
 	// healthcheck
 	if !s.Configuration().GetHTTP().CustomHealthCheck {
 		s.setHealthCheck()
+	}
+}
+
+func (s *Service) httpRequestLogger() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			start := time.Now()
+			err := next(c)
+
+			req := c.Request()
+			res := c.Response()
+
+			fields := []zap.Field{
+				zap.String("method", req.Method),
+				zap.String("uri", req.RequestURI),
+				zap.Int("status", res.Status),
+				zap.Duration("latency", time.Since(start)),
+				zap.String("ip", c.RealIP()),
+			}
+
+			if sc := trace.SpanFromContext(req.Context()).SpanContext(); sc.IsValid() {
+				fields = append(fields,
+					zap.String("trace_id", sc.TraceID().String()),
+					zap.String("span_id", sc.SpanID().String()),
+				)
+			}
+
+			s.log.Info("http", fields...)
+			return err
+		}
 	}
 }
 
