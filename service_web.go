@@ -128,28 +128,39 @@ func (s *Service) initWebServer() {
 func (s *Service) httpRequestLogger() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			start := time.Now()
-			err := next(c)
-
 			req := c.Request()
-			res := c.Response()
 
-			fields := []zap.Field{
+			inFields := []zap.Field{
 				zap.String("method", req.Method),
 				zap.String("uri", req.RequestURI),
-				zap.Int("status", res.Status),
-				zap.Duration("latency", time.Since(start)),
 				zap.String("ip", c.RealIP()),
 			}
-
 			if sc := trace.SpanFromContext(req.Context()).SpanContext(); sc.IsValid() {
-				fields = append(fields,
+				inFields = append(inFields,
 					zap.String("trace_id", sc.TraceID().String()),
 					zap.String("span_id", sc.SpanID().String()),
 				)
 			}
+			s.log.Info("Incoming request", inFields...)
 
-			s.log.Info("http", fields...)
+			start := time.Now()
+			err := next(c)
+
+			res := c.Response()
+			outFields := []zap.Field{
+				zap.String("method", req.Method),
+				zap.String("uri", req.RequestURI),
+				zap.Int("status", res.Status),
+				zap.Duration("latency", time.Since(start)),
+			}
+			if sc := trace.SpanFromContext(req.Context()).SpanContext(); sc.IsValid() {
+				outFields = append(outFields,
+					zap.String("trace_id", sc.TraceID().String()),
+					zap.String("span_id", sc.SpanID().String()),
+				)
+			}
+			s.log.Info("Outgoing response", outFields...)
+
 			return err
 		}
 	}
