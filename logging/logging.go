@@ -152,6 +152,14 @@ func (c noCallerCore) With(fields []zapcore.Field) zapcore.Core {
 	return noCallerCore{c.Core.With(fields)}
 }
 
+// Check must add c itself (not c.Core) so that Write is called on the wrapper.
+func (c noCallerCore) Check(entry zapcore.Entry, ce *zapcore.CheckedEntry) *zapcore.CheckedEntry {
+	if c.Enabled(entry.Level) {
+		return ce.AddCore(entry, c)
+	}
+	return ce
+}
+
 func (c noCallerCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 	entry.Caller = zapcore.EntryCaller{}
 	return c.Core.Write(entry, fields)
