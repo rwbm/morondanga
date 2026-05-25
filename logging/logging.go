@@ -65,7 +65,7 @@ func GetWithConfig(level int, format string, otel ...OTELOptions) *zap.Logger {
 
 	if len(otel) > 0 && otel[0].Enabled {
 		otelCore := otelzap.NewCore(otel[0].ServiceName)
-		base = zap.New(zapcore.NewTee(base.Core(), otelCore), zap.WithCaller(true))
+		base = zap.New(zapcore.NewTee(base.Core(), noCallerCore{otelCore}), zap.WithCaller(true))
 	}
 
 	logger = base
@@ -142,6 +142,19 @@ func LoggerFromContext(ctx context.Context) (*zap.Logger, bool) {
 	}
 
 	return l, true
+}
+
+// noCallerCore wraps a zapcore.Core and clears the caller field before each
+// Write so that code.* attributes are not emitted (e.g. to the OTEL bridge).
+type noCallerCore struct{ zapcore.Core }
+
+func (c noCallerCore) With(fields []zapcore.Field) zapcore.Core {
+	return noCallerCore{c.Core.With(fields)}
+}
+
+func (c noCallerCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
+	entry.Caller = zapcore.EntryCaller{}
+	return c.Core.Write(entry, fields)
 }
 
 func configLogger(level int, format string) *zap.Logger {
