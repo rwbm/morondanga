@@ -13,7 +13,7 @@ import (
 	"github.com/rwbm/morondanga/config"
 	"github.com/rwbm/morondanga/logging"
 	"github.com/rwbm/morondanga/pkg/redis"
-	"github.com/uptrace/opentelemetry-go-extra/otelgorm"
+	"github.com/uptrace/opentelemetry-go-extra/otelsql"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -39,6 +39,14 @@ type Service struct {
 }
 
 var dialectorFactory = defaultDialectorFactory
+
+// sqlDriverName maps morondanga config driver names to sql.Driver registration names.
+func sqlDriverName(driver string) string {
+	if driver == "postgres" {
+		return "pgx" // gorm/driver/postgres uses pgx v5
+	}
+	return driver
+}
 
 func defaultDialectorFactory(driver, dsn string) (gorm.Dialector, error) {
 	switch strings.ToLower(strings.TrimSpace(driver)) {
@@ -225,24 +233,34 @@ func (s *Service) initDatabase() error {
 
 	dbCfg := s.Configuration().GetDatabase()
 	connString := dbCfg.ConnectionString()
-	dialector, err := dialectorFactory(dbCfg.Driver, connString)
-	if err != nil {
-		return err
-	}
-	db, err := gorm.Open(
-		dialector,
-		&gorm.Config{
-			Logger: newLogger,
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to connect to the database: %w", err)
+	driver := strings.ToLower(strings.TrimSpace(dbCfg.Driver))
+
+	var dialector gorm.Dialector
+	if obs := s.Configuration().GetObservability(); obs != nil && obs.Enabled {
+		sqlDB, err := otelsql.Open(sqlDriverName(driver), connString)
+		if err != nil {
+			return fmt.Errorf("open sql db: %w", err)
+		}
+		switch driver {
+		case "mysql":
+			dialector = mysql.New(mysql.Config{Conn: sqlDB})
+		case "postgres":
+			dialector = postgres.New(postgres.Config{Conn: sqlDB})
+		default:
+			_ = sqlDB.Close()
+			return fmt.Errorf("unsupported database driver: %s", driver)
+		}
+	} else {
+		var err error
+		dialector, err = dialectorFactory(driver, connString)
+		if err != nil {
+			return err
+		}
 	}
 
-	if obs := s.Configuration().GetObservability(); obs != nil && obs.Enabled {
-		if err := db.Use(otelgorm.NewPlugin()); err != nil {
-			return fmt.Errorf("register otelgorm plugin: %w", err)
-		}
+	db, err := gorm.Open(dialector, &gorm.Config{Logger: newLogger})
+	if err != nil {
+		return fmt.Errorf("failed to connect to the database: %w", err)
 	}
 
 	s.db = db
