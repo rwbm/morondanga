@@ -13,6 +13,7 @@ import (
 	"github.com/rwbm/morondanga/config"
 	"github.com/rwbm/morondanga/logging"
 	"github.com/rwbm/morondanga/pkg/redis"
+	"github.com/uptrace/opentelemetry-go-extra/otelgorm"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -236,6 +237,12 @@ func (s *Service) initDatabase() error {
 	)
 	if err != nil {
 		return fmt.Errorf("failed to connect to the database: %w", err)
+	}
+
+	if obs := s.Configuration().GetObservability(); obs != nil && obs.Enabled {
+		if err := db.Use(otelgorm.NewPlugin()); err != nil {
+			return fmt.Errorf("register otelgorm plugin: %w", err)
+		}
 	}
 
 	s.db = db
