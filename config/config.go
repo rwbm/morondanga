@@ -208,6 +208,11 @@ func GetConfiguration(configFilePath string, cfgTemplate ConfigTemplate) error {
 
 	viper.AddConfigPath(dir)
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	// Register optional keys that may only be supplied via env var (no YAML
+	// entry). Viper's Unmarshal uses AllSettings(), which only iterates keys
+	// it already knows about — SetDefault makes a key visible so AutomaticEnv
+	// picks up the corresponding env var even when the YAML omits the field.
+	viper.SetDefault("config.observability.apikey", "")
 	viper.AutomaticEnv()
 
 	if err := viper.ReadInConfig(); err != nil {
