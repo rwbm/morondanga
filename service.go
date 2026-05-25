@@ -5,15 +5,20 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/rwbm/morondanga/config"
 	"github.com/rwbm/morondanga/logging"
+	"github.com/rwbm/morondanga/pkg/redis"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 )
@@ -21,14 +26,29 @@ import (
 // Represents the main component, that presents a basic set
 // of modules that can be enabled or disabled by configuration.
 type Service struct {
-	server      *echo.Echo
-	cfg         config.ConfigTemplate
-	log         *zap.Logger
-	db          *gorm.DB
-	healthCheck func(c echo.Context) error
-	jwtHandler  echo.MiddlewareFunc
+	server       *echo.Echo
+	cfg          config.ConfigTemplate
+	log          *zap.Logger
+	db           *gorm.DB
+	redisClient  *redis.Client
+	healthCheck  func(c echo.Context) error
+	jwtHandler   echo.MiddlewareFunc
+	tracer       trace.Tracer
+	otelShutdown func()
 }
 
+var dialectorFactory = defaultDialectorFactory
+
+func defaultDialectorFactory(driver, dsn string) (gorm.Dialector, error) {
+	switch strings.ToLower(strings.TrimSpace(driver)) {
+	case "mysql":
+		return mysql.Open(dsn), nil
+	case "postgres":
+		return postgres.Open(dsn), nil
+	default:
+		return nil, fmt.Errorf("unsupported database driver: %s", driver)
+	}
+}
 // Sets the Validator used for the HTTP server.
 func (s *Service) WithHttpValidator(v Validator) *Service {
 	s.server.Validator = v
@@ -63,6 +83,10 @@ func (s *Service) Database() *gorm.DB {
 	return s.db
 }
 
+// Returns the redis client instance, if it's enabled.
+func (s *Service) Redis() *redis.Client {
+	return s.redisClient
+}
 // Starts the service, by starting the HTTP server and all the enabled modules,
 // like the database and cache connection.
 //
@@ -71,18 +95,46 @@ func (s *Service) Database() *gorm.DB {
 // have to be handled by the caller.
 //
 // It will always return a non-nil error, which must be checked. If everything is fine
-// and the server was stopped, then a gorm.ErrServerClosed will be returned.
+// and the server was stopped, then http.ErrServerClosed will be returned.
 func (s *Service) Run() error {
 	if s.Configuration().GetHTTP().JwtEnabled && s.Configuration().GetHTTP().JwtSigningKey == config.DefaultJwtSigningKey {
 		s.Log().Warn("Using default jwt signing key! Please, use a different one")
 	}
 
-	return s.server.Start(s.cfg.GetHTTP().Address)
+	err := s.server.Start(s.cfg.GetHTTP().Address)
+	if errors.Is(err, http.ErrServerClosed) {
+		return http.ErrServerClosed
+	}
+	if err != nil {
+		return fmt.Errorf("http server start: %w", err)
+	}
+	return nil
 }
 
 // Shutdown stops the server gracefully.
 func (s *Service) Shutdown(ctx context.Context) error {
-	return s.server.Shutdown(ctx)
+	var errs []error
+
+	if s.server != nil {
+		if err := s.server.Shutdown(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("http server shutdown: %w", err))
+		}
+	}
+
+	if s.db != nil {
+		sqlDB, err := s.db.DB()
+		if err != nil {
+			errs = append(errs, fmt.Errorf("database handle: %w", err))
+		} else if err := sqlDB.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("database close: %w", err))
+		}
+	}
+
+	if s.otelShutdown != nil {
+		s.otelShutdown()
+	}
+
+	return errors.Join(errs...)
 }
 
 // NewService creates a returns a new instance of Service.
@@ -113,15 +165,31 @@ func newService(configFilePath string, cfg config.ConfigTemplate) (*Service, err
 		return nil, err
 	}
 
-	// set logger
+	// init observability (OTEL) — must be before logger so bridge is active
+	if err := s.initObservability(); err != nil {
+		return nil, fmt.Errorf("init observability: %w", err)
+	}
+
+	// set logger (with optional otelzap bridge when observability is enabled)
+	obs := s.Configuration().GetObservability()
 	s.log = logging.GetWithConfig(
 		s.Configuration().GetApp().LogLevel,
-		s.Configuration().GetApp().IsDevelopment,
-		s.Configuration().GetApp().LogFormat)
+		s.Configuration().GetApp().LogFormat,
+		logging.OTELOptions{
+			Enabled:     obs != nil && obs.Enabled,
+			ServiceName: s.Configuration().GetApp().Name,
+		})
 
 	// configure database
 	if s.Configuration().GetDatabase().Enabled {
 		if err := s.initDatabase(); err != nil {
+			return nil, err
+		}
+	}
+
+	// configure redis
+	if s.Configuration().GetRedis().Enabled {
+		if err := s.initRedis(); err != nil {
 			return nil, err
 		}
 	}
@@ -144,19 +212,24 @@ func (s *Service) initConfig(cfgFile string, cfg config.ConfigTemplate) error {
 
 func (s *Service) initDatabase() error {
 	newLogger := gormlogger.New(
-		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
+		log.New(os.Stdout, "\r\n", log.LstdFlags),
 		gormlogger.Config{
-			SlowThreshold:             time.Second,     // Slow SQL threshold
-			LogLevel:                  gormlogger.Info, // Log level
-			IgnoreRecordNotFoundError: true,            // Ignore ErrRecordNotFound error for logger
-			ParameterizedQueries:      true,            // Don't include params in the SQL log
-			Colorful:                  true,            // Disable color
+			SlowThreshold:             time.Second,
+			LogLevel:                  gormlogger.Info,
+			IgnoreRecordNotFoundError: true,
+			ParameterizedQueries:      true,
+			Colorful:                  true,
 		},
 	)
 
-	connString := s.Configuration().GetDatabase().ConnectionString()
+	dbCfg := s.Configuration().GetDatabase()
+	connString := dbCfg.ConnectionString()
+	dialector, err := dialectorFactory(dbCfg.Driver, connString)
+	if err != nil {
+		return err
+	}
 	db, err := gorm.Open(
-		mysql.Open(connString),
+		dialector,
 		&gorm.Config{
 			Logger: newLogger,
 		},
@@ -166,5 +239,19 @@ func (s *Service) initDatabase() error {
 	}
 
 	s.db = db
+	return nil
+}
+
+func (s *Service) initRedis() error {
+	redisCfg := s.Configuration().GetRedis()
+	cli, err := redis.NewClient(
+		redisCfg.Address,
+		redisCfg.Password,
+		redisCfg.Database,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create redis client: %w", err)
+	}
+	s.redisClient = cli
 	return nil
 }

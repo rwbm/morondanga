@@ -9,6 +9,7 @@ import (
 	echoMiddleware "github.com/labstack/echo/v4/middleware"
 	"github.com/rwbm/morondanga/common"
 	"github.com/rwbm/morondanga/middleware"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 	"go.uber.org/zap"
 )
 
@@ -91,11 +92,7 @@ func (s *Service) initWebServer() {
 		s.server.Logger.SetLevel(2)
 	}
 
-	if !s.Configuration().GetApp().IsDevelopment {
-		s.server.HideBanner = true
-	}
-
-	// timeouts
+	s.server.HideBanner = true
 	s.server.Server.ReadTimeout = s.Configuration().GetHTTP().ReadTimeout
 	s.server.Server.WriteTimeout = s.Configuration().GetHTTP().WriteTimeout
 	s.server.Server.IdleTimeout = s.Configuration().GetHTTP().IdleTimeout
@@ -104,6 +101,12 @@ func (s *Service) initWebServer() {
 	s.server.Pre(echoMiddleware.RemoveTrailingSlash())
 	s.server.Use(echoMiddleware.Recover())
 	s.server.Use(echoMiddleware.Logger())
+	if obs := s.Configuration().GetObservability(); obs != nil && obs.Enabled {
+		s.server.Use(otelecho.Middleware(s.Configuration().GetApp().Name))
+	}
+	if s.Configuration().GetHTTP().AddTraceID {
+		s.server.Use(middleware.Trace())
+	}
 
 	// validator
 	s.server.Validator = newValidator()

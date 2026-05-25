@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -25,24 +26,27 @@ type (
 		GetApp() *AppConfig
 		GetHTTP() *HttpConfig
 		GetDatabase() *DatabaseConfig
+		GetRedis() *RedisConfig
+		GetObservability() *ObservabilityConfig
 		GetCustomValue(name string) (interface{}, bool)
 		SetDefaults()
 	}
 
 	// Config contains the global service settings.
 	Config struct {
-		App      AppConfig
-		HTTP     HttpConfig
-		Database DatabaseConfig
-		Custom   map[string]interface{}
+		App             AppConfig
+		HTTP            HttpConfig
+		Database        DatabaseConfig
+		Redis           RedisConfig
+		Observability   ObservabilityConfig
+		Custom          map[string]interface{}
 	}
 
 	// AppConfig holds the application settings
 	AppConfig struct {
-		Name          string
-		IsDevelopment bool
-		LogLevel      int
-		LogFormat     string
+		Name      string
+		LogLevel  int
+		LogFormat string
 	}
 
 	// HttpConfig holds the HTTP server related configuration
@@ -52,6 +56,7 @@ type (
 		WriteTimeout       time.Duration
 		IdleTimeout        time.Duration
 		CustomHealthCheck  bool
+		AddTraceID         bool
 		JwtEnabled         bool
 		JwtSigningKey      string
 		JwtTokenExpiration time.Duration
@@ -67,6 +72,25 @@ type (
 		Password string
 		Database string
 	}
+
+	RedisConfig struct {
+		Enabled  bool
+		Address  string
+		Password string
+		Database int
+	}
+
+	// ObservabilityConfig holds OpenTelemetry settings.
+	ObservabilityConfig struct {
+		// Enabled activates OTLP trace + log export and the zap bridge.
+		Enabled bool
+		// Endpoint is the OTLP HTTP base URL (e.g. http://localhost:4318).
+		// Defaults to http://localhost:4318 when empty.
+		Endpoint string
+		// ApiKey is sent as X-API-Key on every OTLP export request.
+		// Required when the collector enforces API key authentication.
+		ApiKey string
+	}
 )
 
 func (cfg *Config) GetApp() *AppConfig {
@@ -79,6 +103,14 @@ func (cfg *Config) GetHTTP() *HttpConfig {
 
 func (cfg *Config) GetDatabase() *DatabaseConfig {
 	return &cfg.Database
+}
+
+func (cfg *Config) GetRedis() *RedisConfig {
+	return &cfg.Redis
+}
+
+func (cfg *Config) GetObservability() *ObservabilityConfig {
+	return &cfg.Observability
 }
 
 func (cfg *Config) GetCustom() map[string]interface{} {
@@ -107,6 +139,18 @@ func (dbCfg *DatabaseConfig) ConnectionString() string {
 				dbCfg.Address,
 				dbCfg.Database,
 			)
+		case "postgres":
+			userInfo := url.UserPassword(dbCfg.User, dbCfg.Password)
+			u := url.URL{
+				Scheme: "postgres",
+				User:   userInfo,
+				Host:   dbCfg.Address,
+				Path:   dbCfg.Database,
+			}
+			q := url.Values{}
+			q.Set("sslmode", "disable")
+			u.RawQuery = q.Encode()
+			return u.String()
 		}
 	}
 	return ""

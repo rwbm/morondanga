@@ -5,12 +5,13 @@
 # basic application settings
 app:
   # application name
-  name: "MyApp"
-
-  debug: true    # TO BE REMOVED SOON
+  name: "myapp"
 
   # -1=DEBUG, 0=INFO, 1=WARNING, 2=ERROR
   logLevel: -1
+
+  # console | json
+  logFormat: json
 
 # HTTP server configuration
 http:
@@ -29,6 +30,9 @@ http:
   # if false, the default health-check will be used
   customHealthCheck: false
 
+  # configures if a TraceID is automatically added to the conext
+  addTraceId: true
+
   # if true, the server will setup a JWT handler automatically
   jwtEnabled: true
 
@@ -43,7 +47,7 @@ database:
   # if enabled, GORM will be configured and the server will try to connect on startup 
   enabled: false
 
-  # DB driver; currently only mysql is supported
+  # DB driver; supported values: mysql, postgres
   driver: "mysql"
 
   # database server address
@@ -58,7 +62,7 @@ database:
   # default database name       
   database: "example"
 
-# authentication module configuration
+# authentication module configuration (not implemented)
 auth:
   # enable/disable the authentication module
   enabled: false
@@ -99,6 +103,19 @@ auth:
 
   # if true, the service will try to create the necesary tables
   autoMigrate: false
+
+redis:
+  # enable/disable the redis client
+  enabled: false
+
+  # redis server address
+  address: 127.0.0.1:6379
+  
+  # redis password
+  password: secret
+
+  # datavase to use; default value is 0
+  database: 0
 
 # user defined keys
 custom:                                  
