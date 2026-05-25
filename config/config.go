@@ -87,6 +87,9 @@ type (
 		// Endpoint is the OTLP HTTP base URL (e.g. http://localhost:4318).
 		// Defaults to http://localhost:4318 when empty.
 		Endpoint string
+		// ApiKey is sent as X-API-Key on every OTLP export request.
+		// Required when the collector enforces API key authentication.
+		ApiKey string
 	}
 )
 

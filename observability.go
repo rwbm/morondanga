@@ -43,11 +43,15 @@ func (s *Service) initObservability() error {
 		return fmt.Errorf("otel resource: %w", err)
 	}
 
-	traceExp, err := otlptracehttp.New(ctx,
-		otlptracehttp.WithEndpointURL(endpoint+"/v1/traces"),
+	traceOpts := []otlptracehttp.Option{
+		otlptracehttp.WithEndpointURL(endpoint + "/v1/traces"),
 		otlptracehttp.WithInsecure(),
-		otlptracehttp.WithTimeout(5*time.Second),
-	)
+		otlptracehttp.WithTimeout(5 * time.Second),
+	}
+	if obs.ApiKey != "" {
+		traceOpts = append(traceOpts, otlptracehttp.WithHeaders(map[string]string{"X-API-Key": obs.ApiKey}))
+	}
+	traceExp, err := otlptracehttp.New(ctx, traceOpts...)
 	if err != nil {
 		return fmt.Errorf("otel trace exporter: %w", err)
 	}
@@ -62,11 +66,15 @@ func (s *Service) initObservability() error {
 		propagation.Baggage{},
 	))
 
-	logExp, err := otlploghttp.New(ctx,
-		otlploghttp.WithEndpointURL(endpoint+"/v1/logs"),
+	logOpts := []otlploghttp.Option{
+		otlploghttp.WithEndpointURL(endpoint + "/v1/logs"),
 		otlploghttp.WithInsecure(),
-		otlploghttp.WithTimeout(5*time.Second),
-	)
+		otlploghttp.WithTimeout(5 * time.Second),
+	}
+	if obs.ApiKey != "" {
+		logOpts = append(logOpts, otlploghttp.WithHeaders(map[string]string{"X-API-Key": obs.ApiKey}))
+	}
+	logExp, err := otlploghttp.New(ctx, logOpts...)
 	if err != nil {
 		_ = tp.Shutdown(context.Background())
 		return fmt.Errorf("otel log exporter: %w", err)
