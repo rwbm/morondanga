@@ -7,10 +7,12 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/propagation"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
@@ -66,6 +68,25 @@ func (s *Service) initObservability() error {
 		propagation.Baggage{},
 	))
 
+	metricOpts := []otlpmetrichttp.Option{
+		otlpmetrichttp.WithEndpointURL(endpoint + "/v1/metrics"),
+		otlpmetrichttp.WithInsecure(),
+		otlpmetrichttp.WithTimeout(5 * time.Second),
+	}
+	if obs.ApiKey != "" {
+		metricOpts = append(metricOpts, otlpmetrichttp.WithHeaders(map[string]string{"X-API-Key": obs.ApiKey}))
+	}
+	metricExp, err := otlpmetrichttp.New(ctx, metricOpts...)
+	if err != nil {
+		_ = tp.Shutdown(context.Background())
+		return fmt.Errorf("otel metric exporter: %w", err)
+	}
+	mp := sdkmetric.NewMeterProvider(
+		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExp, sdkmetric.WithInterval(30*time.Second))),
+		sdkmetric.WithResource(res),
+	)
+	otel.SetMeterProvider(mp)
+
 	logOpts := []otlploghttp.Option{
 		otlploghttp.WithEndpointURL(endpoint + "/v1/logs"),
 		otlploghttp.WithInsecure(),
@@ -77,6 +98,7 @@ func (s *Service) initObservability() error {
 	logExp, err := otlploghttp.New(ctx, logOpts...)
 	if err != nil {
 		_ = tp.Shutdown(context.Background())
+		_ = mp.Shutdown(context.Background())
 		return fmt.Errorf("otel log exporter: %w", err)
 	}
 
@@ -91,6 +113,7 @@ func (s *Service) initObservability() error {
 		shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		_ = tp.Shutdown(shutCtx)
+		_ = mp.Shutdown(shutCtx)
 		_ = lp.Shutdown(shutCtx)
 	}
 
