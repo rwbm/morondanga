@@ -13,9 +13,6 @@ import (
 	"github.com/rwbm/morondanga/common"
 	"github.com/rwbm/morondanga/middleware"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	otelmetric "go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -112,8 +109,20 @@ func (s *Service) initWebServer() {
 	// otelecho must be registered before the request logger so the span is
 	// already in the context when we log latency + status.
 	if obs := s.Configuration().GetObservability(); obs != nil && obs.Enabled {
-		s.server.Use(otelecho.Middleware(s.Configuration().GetApp().Name))
-		s.server.Use(s.httpMetricsMiddleware())
+		var otelOpts []otelecho.Option
+		if len(obs.ExcludedPaths) > 0 {
+			excluded := obs.ExcludedPaths
+			otelOpts = append(otelOpts, otelecho.WithSkipper(func(c echo.Context) bool {
+				path := c.Request().URL.Path
+				for _, p := range excluded {
+					if strings.HasPrefix(path, p) {
+						return true
+					}
+				}
+				return false
+			}))
+		}
+		s.server.Use(otelecho.Middleware(s.Configuration().GetApp().Name, otelOpts...))
 	}
 	s.server.Use(s.httpRequestLogger())
 	if s.Configuration().GetHTTP().AddTraceID {
@@ -239,35 +248,6 @@ func (rc *responseCapture) Flush() {
 
 func (rc *responseCapture) bytes() []byte {
 	return rc.buf.Bytes()
-}
-
-// httpMetricsMiddleware records http.server.request.duration for every request.
-// The histogram is created once when the middleware is initialized and reused
-// across all requests, keeping the hot path allocation-free.
-func (s *Service) httpMetricsMiddleware() echo.MiddlewareFunc {
-	meter := otel.Meter(s.Configuration().GetApp().Name)
-	reqDuration, _ := meter.Float64Histogram(
-		"http.server.request.duration",
-		otelmetric.WithUnit("s"),
-		otelmetric.WithDescription("Duration of HTTP server requests."),
-		otelmetric.WithExplicitBucketBoundaries(
-			0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1, 2.5, 5, 7.5, 10,
-		),
-	)
-	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			start := time.Now()
-			err := next(c)
-			reqDuration.Record(c.Request().Context(), time.Since(start).Seconds(),
-				otelmetric.WithAttributes(
-					attribute.String("http.request.method", c.Request().Method),
-					attribute.Int("http.response.status_code", c.Response().Status),
-					attribute.String("http.route", c.Path()),
-				),
-			)
-			return err
-		}
-	}
 }
 
 func (s *Service) setHealthCheck() {

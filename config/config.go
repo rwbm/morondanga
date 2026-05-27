@@ -90,6 +90,9 @@ type (
 		// ApiKey is sent as X-API-Key on every OTLP export request.
 		// Required when the collector enforces API key authentication.
 		ApiKey string
+		// ExcludedPaths lists URL paths that should be excluded from tracing
+		// and metrics (e.g. ["/health", "/metrics"]). Exact prefix match.
+		ExcludedPaths []string
 	}
 )
 
