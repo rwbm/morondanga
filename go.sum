@@ -104,6 +104,8 @@ go.opentelemetry.io/contrib/bridges/otelzap v0.18.0 h1:EkWTww6Nqs2P29r01NeuNsG7q
 go.opentelemetry.io/contrib/bridges/otelzap v0.18.0/go.mod h1:lj3bgA/c7nJy0NhxqyvWJFC30aTgB+G0RKDdLbvJ4QM=
 go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho v0.68.0 h1:7N94HrYgVc2tng6xEjmbycupxteYLll7lPlEi/UK5ok=
 go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho v0.68.0/go.mod h1:1i+7wBOfx0kn7PSGRKZ8e7zIhs+AmvLCiCloySDUeck=
+go.opentelemetry.io/contrib/instrumentation/runtime v0.68.0 h1:jhVIQEprwUTV+KfzzliLidclhoTOoHTgdz96kAyR8mU=
+go.opentelemetry.io/contrib/instrumentation/runtime v0.68.0/go.mod h1:4HsdbLUbernaTnA8CNaNE+1g026SciXb3juRYe3l8EY=
 go.opentelemetry.io/contrib/propagators/b3 v1.43.0 h1:CETqV3QLLPTy5yNrqyMr41VnAOOD4lsRved7n4QG00A=
 go.opentelemetry.io/contrib/propagators/b3 v1.43.0/go.mod h1:Q4mCiCdziYzpNR0g+6UqVotAlCDZdzz6L8jwY4knOrw=
 go.opentelemetry.io/otel v1.43.0 h1:mYIM03dnh5zfN7HautFE4ieIig9amkNANT+xcVxAj9I=
