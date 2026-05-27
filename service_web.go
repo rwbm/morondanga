@@ -109,9 +109,14 @@ func (s *Service) initWebServer() {
 	// otelecho must be registered before the request logger so the span is
 	// already in the context when we log latency + status.
 	if obs := s.Configuration().GetObservability(); obs != nil && obs.Enabled {
+		// Build the list of paths to skip: built-in /health (when active) + any
+		// user-supplied excluded_paths (e.g. custom health check routes).
+		excluded := append([]string{}, obs.ExcludedPaths...)
+		if !s.Configuration().GetHTTP().CustomHealthCheck {
+			excluded = append(excluded, "/health")
+		}
 		var otelOpts []otelecho.Option
-		if len(obs.ExcludedPaths) > 0 {
-			excluded := obs.ExcludedPaths
+		if len(excluded) > 0 {
 			otelOpts = append(otelOpts, otelecho.WithSkipper(func(c echo.Context) bool {
 				path := c.Request().URL.Path
 				for _, p := range excluded {

@@ -117,7 +117,25 @@ redis:
   # datavase to use; default value is 0
   database: 0
 
+observability:
+  # enable/disable OpenTelemetry trace, metric and log export via OTLP
+  enabled: false
+
+  # OTLP HTTP base URL; defaults to http://localhost:4318 when empty
+  endpoint: "http://localhost:4318"
+
+  # sent as X-API-Key on every OTLP export request
+  apiKey: ""
+
+  # paths excluded from tracing and metrics (exact prefix match).
+  # the built-in /health endpoint is always excluded automatically when
+  # customHealthCheck is false — no need to list it here.
+  # use this for custom health check routes or any other high-frequency
+  # internal endpoint you don't want polluting APM data.
+  excludedPaths:
+    - /readyz
+
 # user defined keys
-custom:                                  
+custom:
   myKeyString: "my string value"
   myKeyInteger: 12345
