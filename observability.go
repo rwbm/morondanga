@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
@@ -75,6 +76,11 @@ func (s *Service) initObservability() error {
 		otlpmetrichttp.WithEndpointURL(endpoint + "/v1/metrics"),
 		otlpmetrichttp.WithInsecure(),
 		otlpmetrichttp.WithTimeout(5 * time.Second),
+		// Force delta temporality so each export window contains only new observations.
+		// The SDK default is cumulative, which causes SUM(count) queries to compound.
+		otlpmetrichttp.WithTemporalitySelector(func(_ sdkmetric.InstrumentKind) metricdata.Temporality {
+			return metricdata.DeltaTemporality
+		}),
 	}
 	if obs.ApiKey != "" {
 		metricOpts = append(metricOpts, otlpmetrichttp.WithHeaders(map[string]string{"X-API-Key": obs.ApiKey}))
