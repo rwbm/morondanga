@@ -3,13 +3,16 @@ package morondanga
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"time"
 
+	runtimemetrics "go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/log/global"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -107,6 +110,22 @@ func (s *Service) initObservability() error {
 		sdklog.WithResource(res),
 	)
 	global.SetLoggerProvider(lp)
+
+	// Go runtime metrics (goroutines, GC, etc.) via contrib package.
+	_ = runtimemetrics.Start(runtimemetrics.WithMinimumReadMemStatsInterval(30 * time.Second))
+
+	// process.memory.usage — standard OTLP semconv, backed by runtime.MemStats.Sys.
+	meter := mp.Meter(s.Configuration().GetApp().Name)
+	memGauge, _ := meter.Int64ObservableGauge("process.memory.usage",
+		metric.WithUnit("By"),
+		metric.WithDescription("Process virtual memory reserved from the OS"),
+	)
+	_, _ = meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
+		var ms runtime.MemStats
+		runtime.ReadMemStats(&ms)
+		o.ObserveInt64(memGauge, int64(ms.Sys))
+		return nil
+	}, memGauge)
 
 	s.tracer = otel.Tracer(s.Configuration().GetApp().Name)
 	s.otelShutdown = func() {
