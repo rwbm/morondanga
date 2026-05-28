@@ -60,6 +60,15 @@ type (
 		JwtEnabled         bool
 		JwtSigningKey      string
 		JwtTokenExpiration time.Duration
+		// MaskedBodyFields lists JSON field names (case-insensitive) whose values
+		// are replaced with "[REDACTED]" in request and response body logs.
+		// Applied recursively to nested objects and arrays.
+		// Example: ["password", "token", "secret"]
+		MaskedBodyFields []string
+		// MaskedHeaders lists additional HTTP header names (case-insensitive) to
+		// redact in request and response logs. Authorization and X-Api-Key are
+		// always redacted regardless of this list.
+		MaskedHeaders []string
 	}
 
 	// DatabaseConfig stores the database configuration
