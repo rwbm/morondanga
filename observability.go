@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"sync"
+	"syscall"
 	"time"
 
 	runtimemetrics "go.opentelemetry.io/contrib/instrumentation/runtime"
@@ -120,18 +122,50 @@ func (s *Service) initObservability() error {
 	// Go runtime metrics (goroutines, GC, etc.) via contrib package.
 	_ = runtimemetrics.Start(runtimemetrics.WithMinimumReadMemStatsInterval(30 * time.Second))
 
-	// process.memory.usage — standard OTLP semconv, backed by runtime.MemStats.Sys.
 	meter := mp.Meter(s.Configuration().GetApp().Name)
+
+	// process.memory.usage — standard OTLP semconv, backed by runtime.MemStats.Sys.
 	memGauge, _ := meter.Int64ObservableGauge("process.memory.usage",
 		metric.WithUnit("By"),
 		metric.WithDescription("Process virtual memory reserved from the OS"),
 	)
+
+	// process.cpu.utilization — ratio 0–1 of CPU time consumed by this process.
+	// Computed as delta(user+sys rusage) / delta(wall clock) between successive
+	// observations so the value reflects recent activity, not lifetime average.
+	cpuGauge, _ := meter.Float64ObservableGauge("process.cpu.utilization",
+		metric.WithUnit("1"),
+		metric.WithDescription("Fraction of CPU time used by this process (0–1)"),
+	)
+	var (
+		cpuMu       sync.Mutex
+		lastCPUNs   int64
+		lastWallNs  = time.Now().UnixNano()
+	)
+
 	_, _ = meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
 		var ms runtime.MemStats
 		runtime.ReadMemStats(&ms)
 		o.ObserveInt64(memGauge, int64(ms.Sys))
+
+		var ru syscall.Rusage
+		if err := syscall.Getrusage(syscall.RUSAGE_SELF, &ru); err == nil {
+			nowNs := time.Now().UnixNano()
+			cpuNs := ru.Utime.Nano() + ru.Stime.Nano()
+
+			cpuMu.Lock()
+			wallDelta := nowNs - lastWallNs
+			cpuDelta := cpuNs - lastCPUNs
+			lastWallNs = nowNs
+			lastCPUNs = cpuNs
+			cpuMu.Unlock()
+
+			if wallDelta > 0 {
+				o.ObserveFloat64(cpuGauge, float64(cpuDelta)/float64(wallDelta))
+			}
+		}
 		return nil
-	}, memGauge)
+	}, memGauge, cpuGauge)
 
 	s.tracer = otel.Tracer(s.Configuration().GetApp().Name)
 	s.otelShutdown = func() {
