@@ -2,6 +2,7 @@ package morondanga
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -153,6 +154,10 @@ func (s *Service) initWebServer() {
 }
 
 func (s *Service) httpRequestLogger(excluded []string) echo.MiddlewareFunc {
+	httpCfg := s.Configuration().GetHTTP()
+	maskedBodyFields := httpCfg.MaskedBodyFields
+	maskedHeaders := httpCfg.MaskedHeaders
+
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			req := c.Request()
@@ -167,7 +172,7 @@ func (s *Service) httpRequestLogger(excluded []string) echo.MiddlewareFunc {
 				zap.String("method", req.Method),
 				zap.String("uri", req.RequestURI),
 				zap.String("ip", c.RealIP()),
-				zap.Any("headers", flatHeaders(req.Header)),
+				zap.Any("headers", flatHeaders(req.Header, maskedHeaders)),
 			}
 			if req.Body != nil && req.Body != http.NoBody {
 				rawBody, _ := io.ReadAll(req.Body)
@@ -177,7 +182,7 @@ func (s *Service) httpRequestLogger(excluded []string) echo.MiddlewareFunc {
 					if len(logBody) > maxBodyLogSize {
 						logBody = logBody[:maxBodyLogSize]
 					}
-					inFields = append(inFields, zap.String("body", string(logBody)))
+					inFields = append(inFields, zap.String("body", string(maskJSONBody(logBody, maskedBodyFields))))
 				}
 			}
 			if sc := trace.SpanFromContext(req.Context()).SpanContext(); sc.IsValid() {
@@ -200,10 +205,10 @@ func (s *Service) httpRequestLogger(excluded []string) echo.MiddlewareFunc {
 				zap.String("uri", req.RequestURI),
 				zap.Int("status", res.Status),
 				zap.Duration("latency", time.Since(start)),
-				zap.Any("headers", flatHeaders(res.Header())),
+				zap.Any("headers", flatHeaders(res.Header(), maskedHeaders)),
 			}
 			if body := resCapture.bytes(); len(body) > 0 {
-				outFields = append(outFields, zap.String("body", string(body)))
+				outFields = append(outFields, zap.String("body", string(maskJSONBody(body, maskedBodyFields))))
 			}
 			if sc := trace.SpanFromContext(req.Context()).SpanContext(); sc.IsValid() {
 				outFields = append(outFields,
@@ -219,11 +224,19 @@ func (s *Service) httpRequestLogger(excluded []string) echo.MiddlewareFunc {
 }
 
 // flatHeaders converts http.Header to a flat map for structured logging.
-// Authorization and X-API-Key values are redacted.
-func flatHeaders(h http.Header) map[string]string {
+// Authorization and X-Api-Key are always redacted. extra lists additional
+// header names (case-insensitive) to redact.
+func flatHeaders(h http.Header, extra []string) map[string]string {
+	always := map[string]struct{}{
+		"authorization": {},
+		"x-api-key":    {},
+	}
+	for _, k := range extra {
+		always[strings.ToLower(k)] = struct{}{}
+	}
 	out := make(map[string]string, len(h))
 	for k, vals := range h {
-		if strings.EqualFold(k, "Authorization") || strings.EqualFold(k, "X-Api-Key") {
+		if _, masked := always[strings.ToLower(k)]; masked {
 			out[k] = "[REDACTED]"
 			continue
 		}
@@ -232,6 +245,46 @@ func flatHeaders(h http.Header) map[string]string {
 		}
 	}
 	return out
+}
+
+// maskJSONBody replaces the values of any JSON fields whose keys (case-insensitive)
+// appear in fields with "[REDACTED]". Applied recursively to nested objects and arrays.
+// If body is not valid JSON or fields is empty, body is returned unchanged.
+func maskJSONBody(body []byte, fields []string) []byte {
+	if len(fields) == 0 || len(body) == 0 {
+		return body
+	}
+	masked := make(map[string]struct{}, len(fields))
+	for _, f := range fields {
+		masked[strings.ToLower(f)] = struct{}{}
+	}
+	var obj interface{}
+	if err := json.Unmarshal(body, &obj); err != nil {
+		return body
+	}
+	maskJSONValue(obj, masked)
+	out, err := json.Marshal(obj)
+	if err != nil {
+		return body
+	}
+	return out
+}
+
+func maskJSONValue(v interface{}, fields map[string]struct{}) {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		for k, child := range val {
+			if _, ok := fields[strings.ToLower(k)]; ok {
+				val[k] = "[REDACTED]"
+			} else {
+				maskJSONValue(child, fields)
+			}
+		}
+	case []interface{}:
+		for _, item := range val {
+			maskJSONValue(item, fields)
+		}
+	}
 }
 
 type responseCapture struct {
