@@ -108,18 +108,22 @@ func (s *Service) initWebServer() {
 	s.server.Use(echoMiddleware.Recover())
 	// otelecho must be registered before the request logger so the span is
 	// already in the context when we log latency + status.
+	// Build the list of paths excluded from both OTEL tracing and request logging.
+	// Always includes /health (unless the service handles its own health check).
+	var excludedPaths []string
+	if obs := s.Configuration().GetObservability(); obs != nil {
+		excludedPaths = append(excludedPaths, obs.ExcludedPaths...)
+	}
+	if !s.Configuration().GetHTTP().CustomHealthCheck {
+		excludedPaths = append(excludedPaths, "/health")
+	}
+
 	if obs := s.Configuration().GetObservability(); obs != nil && obs.Enabled {
-		// Build the list of paths to skip: built-in /health (when active) + any
-		// user-supplied excluded_paths (e.g. custom health check routes).
-		excluded := append([]string{}, obs.ExcludedPaths...)
-		if !s.Configuration().GetHTTP().CustomHealthCheck {
-			excluded = append(excluded, "/health")
-		}
 		var otelOpts []otelecho.Option
-		if len(excluded) > 0 {
+		if len(excludedPaths) > 0 {
 			otelOpts = append(otelOpts, otelecho.WithSkipper(func(c echo.Context) bool {
 				path := c.Request().URL.Path
-				for _, p := range excluded {
+				for _, p := range excludedPaths {
 					if strings.HasPrefix(path, p) {
 						return true
 					}
@@ -129,7 +133,7 @@ func (s *Service) initWebServer() {
 		}
 		s.server.Use(otelecho.Middleware(s.Configuration().GetApp().Name, otelOpts...))
 	}
-	s.server.Use(s.httpRequestLogger())
+	s.server.Use(s.httpRequestLogger(excludedPaths))
 	if s.Configuration().GetHTTP().AddTraceID {
 		s.server.Use(middleware.Trace())
 	}
@@ -148,10 +152,16 @@ func (s *Service) initWebServer() {
 	}
 }
 
-func (s *Service) httpRequestLogger() echo.MiddlewareFunc {
+func (s *Service) httpRequestLogger(excluded []string) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			req := c.Request()
+			path := req.URL.Path
+			for _, p := range excluded {
+				if strings.HasPrefix(path, p) {
+					return next(c)
+				}
+			}
 
 			inFields := []zap.Field{
 				zap.String("method", req.Method),
