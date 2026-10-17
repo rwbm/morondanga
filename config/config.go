@@ -60,6 +60,9 @@ type (
 		JwtEnabled         bool
 		JwtSigningKey      string
 		JwtTokenExpiration time.Duration
+		// JwtCookieName is the cookie the JWT middleware reads the token from when
+		// a request has no Authorization header; only the header if empty.
+		JwtCookieName string
 		// MaskedBodyFields lists JSON field names (case-insensitive) whose values
 		// are replaced with "[REDACTED]" in request and response body logs.
 		// Applied recursively to nested objects and arrays.

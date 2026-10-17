@@ -71,6 +71,7 @@ The configuration file allows you to control the behaviour of the service.
 |`http.customHealthCheck` |`false` | If sets to false, a default health check is used |
 |`http.jwtEnabled`        |`false` | Enable/disable a JWT configuration |
 |`http.jwtSigningKey`     |`"default-signing-key"` | JWT signing key. DON'T use the default value on production |
+|`http.jwtCookieName`     |`""` | Cookie the JWT middleware reads the token from when the request has no `Authorization` header. Only the header if empty |
 |`database.enabled`       |`false` | Enables/disables the database integration |
 |`database.driver`        |`""` | Database driver. Supported: `mysql`, `postgres` |
 |`database.address`       |`""` | Database server address |

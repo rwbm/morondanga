@@ -12,6 +12,9 @@ type (
 	jwtConfig struct {
 		Skipper    skipper
 		SigningKey interface{}
+		// CookieName is the cookie the token is read from when the request has no
+		// Authorization header; none if empty.
+		CookieName string
 	}
 	skipper      func(c echo.Context) bool
 	jwtExtractor func(echo.Context) (string, error)
@@ -23,9 +26,18 @@ func Jwt(key interface{}) echo.MiddlewareFunc {
 	return JwtWithConfig(c)
 }
 
+// JwtWithCookie reads the token from the Authorization header or, without it,
+// from the cookie.
+func JwtWithCookie(key interface{}, cookieName string) echo.MiddlewareFunc {
+	return JwtWithConfig(jwtConfig{SigningKey: key, CookieName: cookieName})
+}
+
 // JwtWithConfig defines the middleware to extract access token from the request.
 func JwtWithConfig(config jwtConfig) echo.MiddlewareFunc {
 	extractor := jwtFromHeader(common.HttpHeaderAuthprization, "Bearer")
+	if config.CookieName != "" {
+		extractor = jwtFromHeaderOrCookie(extractor, config.CookieName)
+	}
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			auth, err := extractor(c)
@@ -44,13 +56,15 @@ func JwtWithConfig(config jwtConfig) echo.MiddlewareFunc {
 				}
 				return config.SigningKey, nil
 			})
+			// an expired or forged token is a missing authentication: 401, for the
+			// client to authenticate again
 			if err != nil {
-				return c.JSON(http.StatusForbidden, common.NewError(common.ErrJWTMissing))
+				return c.JSON(http.StatusUnauthorized, common.NewError(common.ErrJWTMissing))
 			}
 
 			// validate algorithm
 			if token.Method.Alg() != common.JwtAlgoHS512 {
-				return c.JSON(http.StatusForbidden, common.NewError(common.ErrJWTInvalidAlgorithm))
+				return c.JSON(http.StatusUnauthorized, common.NewError(common.ErrJWTInvalidAlgorithm))
 			}
 
 			if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
@@ -62,8 +76,23 @@ func JwtWithConfig(config jwtConfig) echo.MiddlewareFunc {
 				}
 				return next(c)
 			}
-			return c.JSON(http.StatusForbidden, common.NewError(common.ErrJWTInvalid))
+			return c.JSON(http.StatusUnauthorized, common.NewError(common.ErrJWTInvalid))
 		}
+	}
+}
+
+// jwtFromHeaderOrCookie returns a `jwtExtractor` that falls back to the cookie
+// when the header has no token.
+func jwtFromHeaderOrCookie(fromHeader jwtExtractor, cookieName string) jwtExtractor {
+	return func(c echo.Context) (string, error) {
+		if auth, err := fromHeader(c); err == nil {
+			return auth, nil
+		}
+		cookie, err := c.Cookie(cookieName)
+		if err != nil || cookie.Value == "" {
+			return "", common.ErrJWTInvalid
+		}
+		return cookie.Value, nil
 	}
 }
 
