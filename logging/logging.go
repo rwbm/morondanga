@@ -50,7 +50,7 @@ type OTELOptions struct {
 }
 
 // GetWithConfig returns a logger instance. When otel.Enabled is true,
-// a zap→OTEL bridge core is tee'd in so every log line is also exported via OTLP.
+// a zap→OTEL bridge core is tee'd in so every log line at the level is also exported via OTLP.
 func GetWithConfig(level int, format string, otel ...OTELOptions) *zap.Logger {
 	loggerMu.Lock()
 	defer loggerMu.Unlock()
@@ -64,8 +64,11 @@ func GetWithConfig(level int, format string, otel ...OTELOptions) *zap.Logger {
 	base := configLogger(level, cfgCache.format)
 
 	if len(otel) > 0 && otel[0].Enabled {
-		otelCore := otelzap.NewCore(otel[0].ServiceName)
-		base = zap.New(zapcore.NewTee(base.Core(), noCallerCore{otelCore}), zap.WithCaller(true))
+		// otelzap has no level of its own: without this the tee would take (and
+		// export) everything below the configured level, debug bodies included
+		if otelCore, err := zapcore.NewIncreaseLevelCore(otelzap.NewCore(otel[0].ServiceName), zapcore.Level(level)); err == nil {
+			base = zap.New(zapcore.NewTee(base.Core(), noCallerCore{otelCore}), zap.WithCaller(true))
+		}
 	}
 
 	logger = base
