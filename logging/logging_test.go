@@ -2,10 +2,13 @@ package logging
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/log/global"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
@@ -73,4 +76,47 @@ func TestContextWithTraceIDSkipsEmpty(t *testing.T) {
 	assert.Equal(t, base, ctx)
 	_, ok := TraceIDFromContext(ctx)
 	assert.False(t, ok)
+}
+
+// With the OTEL bridge on, the logger must keep the configured level: what is
+// below it is neither written nor exported, and a check for debug (as the
+// request logger does before logging bodies) says no.
+func TestTheOTELBridgeKeepsTheConfiguredLevel(t *testing.T) {
+	ResetForTests()
+	t.Cleanup(ResetForTests)
+	previous := global.GetLoggerProvider()
+	exported := &recordingExporter{}
+	global.SetLoggerProvider(sdklog.NewLoggerProvider(sdklog.WithProcessor(sdklog.NewSimpleProcessor(exported))))
+	t.Cleanup(func() { global.SetLoggerProvider(previous) })
+
+	l := GetWithConfig(int(zapcore.InfoLevel), "json", OTELOptions{Enabled: true, ServiceName: "test"})
+
+	assert.False(t, l.Core().Enabled(zapcore.DebugLevel))
+	l.Debug("debug line")
+	l.Info("info line")
+	require.Len(t, exported.bodies(), 1)
+	assert.Equal(t, "info line", exported.bodies()[0])
+}
+
+type recordingExporter struct {
+	mu      sync.Mutex
+	records []string
+}
+
+func (e *recordingExporter) Export(_ context.Context, records []sdklog.Record) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, r := range records {
+		e.records = append(e.records, r.Body().AsString())
+	}
+	return nil
+}
+
+func (e *recordingExporter) Shutdown(context.Context) error   { return nil }
+func (e *recordingExporter) ForceFlush(context.Context) error { return nil }
+
+func (e *recordingExporter) bodies() []string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]string(nil), e.records...)
 }
