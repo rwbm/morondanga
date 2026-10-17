@@ -144,7 +144,8 @@ func (s *Service) initWebServer() {
 
 	// jwt
 	if s.Configuration().GetHTTP().JwtEnabled {
-		s.jwtHandler = middleware.Jwt([]byte(s.Configuration().GetHTTP().JwtSigningKey))
+		httpCfg := s.Configuration().GetHTTP()
+		s.jwtHandler = middleware.JwtWithCookie([]byte(httpCfg.JwtSigningKey), httpCfg.JwtCookieName)
 	}
 
 	// healthcheck
