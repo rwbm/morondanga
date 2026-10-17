@@ -158,6 +158,8 @@ func (s *Service) httpRequestLogger(excluded []string) echo.MiddlewareFunc {
 	httpCfg := s.Configuration().GetHTTP()
 	maskedBodyFields := httpCfg.MaskedBodyFields
 	maskedHeaders := httpCfg.MaskedHeaders
+	// the bodies may carry personal data: logged only when debugging
+	logBodies := s.log.Core().Enabled(zap.DebugLevel)
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
@@ -175,7 +177,7 @@ func (s *Service) httpRequestLogger(excluded []string) echo.MiddlewareFunc {
 				zap.String("ip", c.RealIP()),
 				zap.Any("headers", flatHeaders(req.Header, maskedHeaders)),
 			}
-			if req.Body != nil && req.Body != http.NoBody {
+			if logBodies && req.Body != nil && req.Body != http.NoBody {
 				rawBody, _ := io.ReadAll(req.Body)
 				req.Body = io.NopCloser(bytes.NewReader(rawBody))
 				if len(rawBody) > 0 {
@@ -208,7 +210,7 @@ func (s *Service) httpRequestLogger(excluded []string) echo.MiddlewareFunc {
 				zap.Duration("latency", time.Since(start)),
 				zap.Any("headers", flatHeaders(res.Header(), maskedHeaders)),
 			}
-			if body := resCapture.bytes(); len(body) > 0 {
+			if body := resCapture.bytes(); logBodies && len(body) > 0 {
 				outFields = append(outFields, zap.String("body", string(maskJSONBody(body, maskedBodyFields))))
 			}
 			if sc := trace.SpanFromContext(req.Context()).SpanContext(); sc.IsValid() {
@@ -225,12 +227,14 @@ func (s *Service) httpRequestLogger(excluded []string) echo.MiddlewareFunc {
 }
 
 // flatHeaders converts http.Header to a flat map for structured logging.
-// Authorization and X-Api-Key are always redacted. extra lists additional
-// header names (case-insensitive) to redact.
+// Authorization, X-Api-Key and the cookies, which carry sessions, are always
+// redacted. extra lists additional header names (case-insensitive) to redact.
 func flatHeaders(h http.Header, extra []string) map[string]string {
 	always := map[string]struct{}{
 		"authorization": {},
-		"x-api-key":    {},
+		"x-api-key":     {},
+		"cookie":        {},
+		"set-cookie":    {},
 	}
 	for _, k := range extra {
 		always[strings.ToLower(k)] = struct{}{}
