@@ -158,8 +158,8 @@ func (s *Service) httpRequestLogger(excluded []string) echo.MiddlewareFunc {
 	httpCfg := s.Configuration().GetHTTP()
 	maskedBodyFields := httpCfg.MaskedBodyFields
 	maskedHeaders := httpCfg.MaskedHeaders
-	// the bodies may carry personal data: logged only when debugging
-	logBodies := s.log.Core().Enabled(zap.DebugLevel)
+	// Bodies are included when explicitly enabled or when debugging.
+	logBodies := httpCfg.LogBodies || s.log.Core().Enabled(zap.DebugLevel)
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {

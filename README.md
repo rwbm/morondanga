@@ -72,7 +72,8 @@ The configuration file allows you to control the behaviour of the service.
 |`http.jwtEnabled`        |`false` | Enable/disable a JWT configuration |
 |`http.jwtSigningKey`     |`"default-signing-key"` | JWT signing key. DON'T use the default value on production |
 |`http.jwtCookieName`     |`""` | Cookie the JWT middleware reads the token from when the request has no `Authorization` header. Only the header if empty |
-|`http.maskedHeaders`     |`[]` | Headers redacted in the request logs, besides `Authorization`, `X-Api-Key`, `Cookie` and `Set-Cookie`, always redacted. Request and response bodies are logged only at debug level |
+|`http.maskedHeaders`     |`[]` | Headers redacted in the request logs, besides `Authorization`, `X-Api-Key`, `Cookie` and `Set-Cookie`, always redacted. Request and response bodies are logged when debug is enabled or http.logBodies is true |
+|`http.logBodies`         |`false` | Include request and response bodies in info logs without enabling global debug. Environment: HTTP_LOGBODIES, or CONFIG_HTTP_LOGBODIES for nested config |
 |`http.maskedBodyFields`  |`[]` | JSON fields redacted in the logged bodies, at any depth |
 |`database.enabled`       |`false` | Enables/disables the database integration |
 |`database.driver`        |`""` | Database driver. Supported: `mysql`, `postgres` |

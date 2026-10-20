@@ -15,6 +15,12 @@ app:
 
 # HTTP server configuration
 http:
+  # include request and response bodies at info level (also included at debug)
+  logBodies: false
+
+  # JSON fields to redact recursively in logged bodies
+  maskedBodyFields: ["password", "token", "secret"]
+
   # ip address and port where the HTTP server is going to listen
   address: 127.0.0.1:8080
 

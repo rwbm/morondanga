@@ -1,6 +1,7 @@
 package morondanga
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,14 +15,20 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
-func logRequest(t *testing.T, level zapcore.Level) []observer.LoggedEntry {
+func logRequest(t *testing.T, level zapcore.Level, httpConfig ...config.HttpConfig) []observer.LoggedEntry {
 	t.Helper()
 	core, logs := observer.New(level)
 	s := &Service{cfg: &config.Config{HTTP: config.HttpConfig{}}, log: zap.New(core)}
+	if len(httpConfig) > 0 {
+		s.cfg = &config.Config{HTTP: httpConfig[0]}
+	}
 	req := httptest.NewRequest(http.MethodPost, "/v1/orders", strings.NewReader(`{"customerPhone":"59899000001"}`))
 	req.Header.Set("Cookie", "access_token=secret-token")
 	rec := httptest.NewRecorder()
 	handler := s.httpRequestLogger(nil)(func(c echo.Context) error {
+		body, err := io.ReadAll(c.Request().Body)
+		require.NoError(t, err)
+		require.Equal(t, `{"customerPhone":"59899000001"}`, string(body))
 		c.Response().Header().Set("Set-Cookie", "refresh_token=another-secret")
 		return c.JSON(http.StatusOK, map[string]string{"deliveryAddress": "Av. 18 de Julio 1234"})
 	})
@@ -34,7 +41,7 @@ func fields(entry observer.LoggedEntry) map[string]any {
 }
 
 // The bodies carry the customers' phones, addresses and messages: they are
-// logged only when debugging.
+// logged by default only when debugging.
 func TestBodiesAreLoggedOnlyWhenDebugging(t *testing.T) {
 	for _, entry := range logRequest(t, zapcore.InfoLevel) {
 		_, ok := fields(entry)["body"]
@@ -54,5 +61,21 @@ func TestCookiesAreNeverLogged(t *testing.T) {
 				require.Equal(t, "[REDACTED]", value, "%s logged in %s", name, entry.Message)
 			}
 		}
+	}
+}
+
+func TestLogBodiesAtInfoWithMasking(t *testing.T) {
+	entries := logRequest(t, zapcore.InfoLevel, config.HttpConfig{
+		LogBodies:        true,
+		MaskedBodyFields: []string{"customerPhone", "deliveryAddress"},
+	})
+	require.Len(t, entries, 2)
+	require.Equal(t, "Incoming request", entries[0].Message)
+	require.Equal(t, "Outgoing response", entries[1].Message)
+	for _, entry := range entries {
+		require.Equal(t, zapcore.InfoLevel, entry.Level)
+		require.Contains(t, fields(entry)["body"], "[REDACTED]")
+		require.NotContains(t, fields(entry)["body"], "59899000001")
+		require.NotContains(t, fields(entry)["body"], "18 de Julio")
 	}
 }
