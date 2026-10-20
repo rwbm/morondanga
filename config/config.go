@@ -34,12 +34,12 @@ type (
 
 	// Config contains the global service settings.
 	Config struct {
-		App             AppConfig
-		HTTP            HttpConfig
-		Database        DatabaseConfig
-		Redis           RedisConfig
-		Observability   ObservabilityConfig
-		Custom          map[string]interface{}
+		App           AppConfig
+		HTTP          HttpConfig
+		Database      DatabaseConfig
+		Redis         RedisConfig
+		Observability ObservabilityConfig
+		Custom        map[string]interface{}
 	}
 
 	// AppConfig holds the application settings
@@ -68,6 +68,9 @@ type (
 		// Applied recursively to nested objects and arrays.
 		// Example: ["password", "token", "secret"]
 		MaskedBodyFields []string
+		// LogBodies includes request and response bodies in HTTP info logs.
+		// Debug logging also includes bodies, preserving the existing behavior.
+		LogBodies bool
 		// MaskedHeaders lists additional HTTP header names (case-insensitive) to
 		// redact in request and response logs. Authorization and X-Api-Key are
 		// always redacted regardless of this list.
@@ -228,6 +231,8 @@ func GetConfiguration(configFilePath string, cfgTemplate ConfigTemplate) error {
 	// it already knows about — SetDefault makes a key visible so AutomaticEnv
 	// picks up the corresponding env var even when the YAML omits the field.
 	viper.SetDefault("config.observability.apikey", "")
+	viper.SetDefault("http.logbodies", false)
+	viper.SetDefault("config.http.logbodies", false)
 	viper.AutomaticEnv()
 
 	if err := viper.ReadInConfig(); err != nil {

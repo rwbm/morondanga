@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -85,4 +87,20 @@ func TestDatabaseConnectionStringPostgres(t *testing.T) {
 
 	dsn := cfg.ConnectionString()
 	assert.Equal(t, "postgres://postgres:postgres@localhost:5432/food_bot?sslmode=disable", dsn)
+}
+
+func TestLogBodiesEnvironmentOverride(t *testing.T) {
+	t.Setenv("HTTP_LOGBODIES", "true")
+	var cfg Config
+	assert.NoError(t, GetConfiguration("testdata/config.yml", &cfg))
+	assert.True(t, cfg.HTTP.LogBodies)
+}
+
+func TestNestedLogBodiesEnvironmentOverride(t *testing.T) {
+	t.Setenv("CONFIG_HTTP_LOGBODIES", "true")
+	path := filepath.Join(t.TempDir(), "config.yml")
+	assert.NoError(t, os.WriteFile(path, []byte("config:\n  app:\n    name: nested\n"), 0600))
+	var cfg struct{ Config }
+	assert.NoError(t, GetConfiguration(path, &cfg))
+	assert.True(t, cfg.Config.HTTP.LogBodies)
 }
