@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/rwbm/morondanga/config"
@@ -32,7 +33,10 @@ type Service struct {
 	log          *zap.Logger
 	db           *gorm.DB
 	redisClient  *redis.Client
-	healthCheck  func(c echo.Context) error
+	version      string
+	builtAt      string
+	readiness    []readinessCheck
+	draining     atomic.Bool
 	jwtHandler   echo.MiddlewareFunc
 	tracer       trace.Tracer
 	otelShutdown func()
@@ -72,7 +76,28 @@ func (s *Service) WithHttpMiddleware(middleware ...echo.MiddlewareFunc) *Service
 
 // Sets the health check handler.
 func (s *Service) WithHttpHealthCheck(route string, f func(c echo.Context) error) *Service {
-	s.healthCheck = f
+	s.server.GET(route, f)
+	return s
+}
+
+type readinessCheck struct {
+	name  string
+	check func(ctx context.Context) error
+}
+
+// Adds a check the default health check runs: while it fails, the service
+// answers 503, not ready for traffic. The database and Redis, when enabled,
+// are checked without adding them.
+func (s *Service) WithReadinessCheck(name string, check func(ctx context.Context) error) *Service {
+	s.readiness = append(s.readiness, readinessCheck{name: name, check: check})
+	return s
+}
+
+// Sets the build the default health check reports: the version (a commit, for
+// example) and when it was built.
+func (s *Service) WithVersion(version, builtAt string) *Service {
+	s.version = version
+	s.builtAt = builtAt
 	return s
 }
 
@@ -130,6 +155,14 @@ func (s *Service) Run() error {
 // Shutdown stops the server gracefully.
 func (s *Service) Shutdown(ctx context.Context) error {
 	var errs []error
+
+	s.draining.Store(true)
+	if delay := s.Configuration().GetHTTP().DrainDelay; delay > 0 {
+		select {
+		case <-time.After(delay):
+		case <-ctx.Done():
+		}
+	}
 
 	if s.server != nil {
 		if err := s.server.Shutdown(ctx); err != nil {
@@ -212,6 +245,21 @@ func newService(configFilePath string, cfg config.ConfigTemplate) (*Service, err
 
 	// configure web server
 	s.initWebServer()
+
+	if s.db != nil {
+		s.WithReadinessCheck("database", func(ctx context.Context) error {
+			sqlDB, err := s.db.DB()
+			if err != nil {
+				return err
+			}
+			return sqlDB.PingContext(ctx)
+		})
+	}
+	if s.redisClient != nil {
+		s.WithReadinessCheck("redis", func(ctx context.Context) error {
+			return s.redisClient.Base.Ping(ctx).Err()
+		})
+	}
 
 	return s, nil
 }

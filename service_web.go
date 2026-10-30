@@ -2,6 +2,7 @@ package morondanga
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -323,14 +324,34 @@ func (rc *responseCapture) bytes() []byte {
 	return rc.buf.Bytes()
 }
 
+// readinessTimeout is how long the health check waits for all its checks.
+const readinessTimeout = 2 * time.Second
+
 func (s *Service) setHealthCheck() {
 	// very basic health check;
 	// we have some ideas to improve this with some custom checkers
 	s.server.GET("/health", func(c echo.Context) error {
 		type healthResponse struct {
-			Status string
+			Status  string
+			Version string   `json:",omitempty"`
+			BuiltAt string   `json:",omitempty"`
+			Failing []string `json:",omitempty"`
 		}
-		resp := healthResponse{Status: "OK"}
+		if s.draining.Load() {
+			return c.JSON(http.StatusServiceUnavailable, healthResponse{Status: "STOPPING"})
+		}
+		resp := healthResponse{Status: "OK", Version: s.version, BuiltAt: s.builtAt}
+		ctx, cancel := context.WithTimeout(c.Request().Context(), readinessTimeout)
+		defer cancel()
+		for _, r := range s.readiness {
+			if err := r.check(ctx); err != nil {
+				resp.Failing = append(resp.Failing, r.name)
+			}
+		}
+		if len(resp.Failing) > 0 {
+			resp.Status = "UNAVAILABLE"
+			return c.JSON(http.StatusServiceUnavailable, resp)
+		}
 		return c.JSON(http.StatusOK, resp)
 	})
 }

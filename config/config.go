@@ -55,7 +55,11 @@ type (
 		ReadTimeout        time.Duration
 		WriteTimeout       time.Duration
 		IdleTimeout        time.Duration
-		CustomHealthCheck  bool
+		// DrainDelay is how long Shutdown answers the health check as not ready
+		// before it stops the server, for a load balancer to stop sending it
+		// requests; none if zero.
+		DrainDelay        time.Duration
+		CustomHealthCheck bool
 		AddTraceID         bool
 		JwtEnabled         bool
 		JwtSigningKey      string
