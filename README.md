@@ -53,7 +53,7 @@ This will start a HTTP server listening on port `8080`, asuming you didn't chang
 $ curl http://localhost:8080/health
 ```
 
-It answers `{"Status":"OK"}`. With `s.WithVersion(version, builtAt)` it also says which build is running (`Version` and `BuiltAt`), for example the commit the image was built from. `s.WithHttpHealthCheck(route, handler)` serves your own handler instead.
+It answers `{"Status":"OK"}` when the service is ready for traffic: the database and Redis (when enabled) answer, and so does every check added with `s.WithReadinessCheck(name, check)`. Otherwise it answers 503 with `{"Status":"UNAVAILABLE","Failing":[...]}`, and while shutting down, 503 with `{"Status":"STOPPING"}`. With `s.WithVersion(version, builtAt)` it also says which build is running (`Version` and `BuiltAt`), for example the commit the image was built from. `s.WithHttpHealthCheck(route, handler)` serves your own handler instead.
 
 ## Configuration yaml
 
@@ -71,6 +71,7 @@ The configuration file allows you to control the behaviour of the service.
 |`http.writeTimeout`      |`10 seconds` | Maximum duration before timing out writes of the response |
 |`http.idleTimeout`       |`2 minutes` | Maximum amount of time to wait for the next request when keep-alives are enabled |
 |`http.customHealthCheck` |`false` | If sets to false, a default health check is used |
+|`http.drainDelay`        |`0` | How long `Shutdown` answers the health check as not ready before stopping the server, for a load balancer to stop sending requests |
 |`http.jwtEnabled`        |`false` | Enable/disable a JWT configuration |
 |`http.jwtSigningKey`     |`"default-signing-key"` | JWT signing key. DON'T use the default value on production |
 |`http.jwtCookieName`     |`""` | Cookie the JWT middleware reads the token from when the request has no `Authorization` header. Only the header if empty |
