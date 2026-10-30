@@ -328,9 +328,11 @@ func (s *Service) setHealthCheck() {
 	// we have some ideas to improve this with some custom checkers
 	s.server.GET("/health", func(c echo.Context) error {
 		type healthResponse struct {
-			Status string
+			Status  string
+			Version string `json:",omitempty"`
+			BuiltAt string `json:",omitempty"`
 		}
-		resp := healthResponse{Status: "OK"}
+		resp := healthResponse{Status: "OK", Version: s.version, BuiltAt: s.builtAt}
 		return c.JSON(http.StatusOK, resp)
 	})
 }

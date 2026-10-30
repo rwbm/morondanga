@@ -32,7 +32,8 @@ type Service struct {
 	log          *zap.Logger
 	db           *gorm.DB
 	redisClient  *redis.Client
-	healthCheck  func(c echo.Context) error
+	version      string
+	builtAt      string
 	jwtHandler   echo.MiddlewareFunc
 	tracer       trace.Tracer
 	otelShutdown func()
@@ -72,7 +73,15 @@ func (s *Service) WithHttpMiddleware(middleware ...echo.MiddlewareFunc) *Service
 
 // Sets the health check handler.
 func (s *Service) WithHttpHealthCheck(route string, f func(c echo.Context) error) *Service {
-	s.healthCheck = f
+	s.server.GET(route, f)
+	return s
+}
+
+// Sets the build the default health check reports: the version (a commit, for
+// example) and when it was built.
+func (s *Service) WithVersion(version, builtAt string) *Service {
+	s.version = version
+	s.builtAt = builtAt
 	return s
 }
 

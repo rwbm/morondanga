@@ -53,6 +53,8 @@ This will start a HTTP server listening on port `8080`, asuming you didn't chang
 $ curl http://localhost:8080/health
 ```
 
+It answers `{"Status":"OK"}`. With `s.WithVersion(version, builtAt)` it also says which build is running (`Version` and `BuiltAt`), for example the commit the image was built from. `s.WithHttpHealthCheck(route, handler)` serves your own handler instead.
+
 ## Configuration yaml
 
 The configuration file allows you to control the behaviour of the service. 
